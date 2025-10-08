@@ -318,7 +318,7 @@ def view_pulled_models():
          summary="Get files in a pulled model directory",
          description="Returns a list of files in a specific model directory to help debug model structure",
          tags=["models"])
-def view_model_files(model: str = Query(..., description="Model name to check files for")):
+def view_model_files(model: str):
     """Get list of files in a model directory"""
     decoded_model = unquote(model)
     local_path = os.path.join(model_dir, decoded_model.replace("/", "_"))
