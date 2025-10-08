@@ -92,6 +92,8 @@ class ContainerInfo(BaseModel):
     name: str
     model: Optional[str] = None
     status: str
+    host_port: Optional[int] = None
+    url: Optional[str] = None
 
 class DeleteStatus(BaseModel):
     status: str
@@ -549,6 +551,8 @@ def show_running_models():
     for cont in containers:
         name = cont.name.replace("vllm-", "")
         model = None
+        host_port = None
+        url = None
 
         # Find the --model argument and extract the path
         cmd_args = cont.attrs["Config"]["Cmd"]
@@ -557,8 +561,21 @@ def show_running_models():
                 model = cmd_args[i + 1]
                 break
 
+        # Get the host port from port bindings
+        if cont.attrs["NetworkSettings"]["Ports"]:
+            port_bindings = cont.attrs["NetworkSettings"]["Ports"]
+            if "8000/tcp" in port_bindings and port_bindings["8000/tcp"]:
+                host_port = int(port_bindings["8000/tcp"][0]["HostPort"])
+                url = f"http://localhost:{host_port}"
+
         status = cont.status
-        running.append({"name": name, "model": model, "status": status})
+        running.append({
+            "name": name,
+            "model": model,
+            "status": status,
+            "host_port": host_port,
+            "url": url
+        })
     return running
 
 @app.delete("/delete",
