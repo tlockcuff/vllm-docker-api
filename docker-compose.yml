@@ -9,7 +9,7 @@ services:
       - models:/models
       - /var/run/docker.sock:/var/run/docker.sock  # To manage other containers
     environment:
-      - HF_TOKEN=your_huggingface_token_here  # Optional, for gated models
+      - HF_TOKEN=${HF_TOKEN}  # Optional, for gated models
     restart: unless-stopped
 
 volumes:
