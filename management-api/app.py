@@ -671,15 +671,15 @@ def start_model(model: str = Query(..., description="Model name to start"), tens
     if any(c.name == container_name for c in docker_client.containers.list(all=True)):
         raise HTTPException(status_code=400, detail="Container already exists")
 
+    # Construct the correct container path for the model
+    container_model_path = f"/models/{decoded_model.replace('/', '_')}"
+
     # Run vLLM container with multi-GPU support and host networking
     docker_client.containers.run(
         "vllm/vllm-openai:latest",
         name=container_name,
-        # Construct the correct container path for the model
-        container_model_path = f"/models/{decoded_model.replace('/', '_')}"
-
         command=[
-            "--model", container_model_path,  # Use container path instead of host path
+            "--model", container_model_path,
             "--tensor-parallel-size", str(tensor_parallel_size),
             "--dtype", "auto",
             "--host", "0.0.0.0",  # Bind to all interfaces
