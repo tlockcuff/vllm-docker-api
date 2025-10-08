@@ -2,13 +2,21 @@ services:
   management-api:
     build: ./management-api
     ports:
-      - "8080:8080" 
+      - "8080:8080"
     volumes:
       - ./models:/models
-      - /var/run/docker.sock:/var/run/docker.sock 
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - HF_TOKEN=${HF_TOKEN}
     restart: unless-stopped
+    # Enable GPU access for the management API if needed
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 volumes:
   models:

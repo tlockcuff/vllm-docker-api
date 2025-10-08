@@ -548,9 +548,15 @@ def show_running_models():
     containers = docker_client.containers.list(filters={"name": "vllm-"})
     for cont in containers:
         name = cont.name.replace("vllm-", "")
-        model = next((cmd for cmd in cont.attrs["Config"]["Cmd"] if cmd.startswith("--model")), None)
-        if model:
-            model = model.split(" ", 1)[1]
+        model = None
+
+        # Find the --model argument and extract the path
+        cmd_args = cont.attrs["Config"]["Cmd"]
+        for i, cmd in enumerate(cmd_args):
+            if cmd == "--model" and i + 1 < len(cmd_args):
+                model = cmd_args[i + 1]
+                break
+
         status = cont.status
         running.append({"name": name, "model": model, "status": status})
     return running
@@ -587,7 +593,7 @@ def start_model(model: str = Query(..., description="Model name to start"), tens
     if any(c.name == container_name for c in docker_client.containers.list(all=True)):
         raise HTTPException(status_code=400, detail="Container already exists")
 
-    # Run vLLM container
+    # Run vLLM container with multi-GPU support
     docker_client.containers.run(
         "vllm/vllm-openai:latest",
         name=container_name,
@@ -599,8 +605,18 @@ def start_model(model: str = Query(..., description="Model name to start"), tens
         ],
         ports={"8000/tcp": None},  # Host port auto-assigned; query container for it
         volumes={model_dir: {"bind": model_dir, "mode": "rw"}},
-        runtime="nvidia",  # For GPU
-        detach=True
+        device_requests=[
+            {
+                "Driver": "nvidia",
+                "Count": tensor_parallel_size,
+                "Capabilities": [["gpu"]],
+                "Options": {}
+            }
+        ] if tensor_parallel_size > 0 else None,
+        detach=True,
+        environment={
+            "NVIDIA_VISIBLE_DEVICES": "0,1" if tensor_parallel_size >= 2 else "0"
+        } if tensor_parallel_size > 0 else {}
     )
     return {"status": "started", "container": container_name}
 
