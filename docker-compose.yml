@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  management-api:
+    build: ./management-api  # Build from local Dockerfile
+    ports:
+      - "8080:8080"  # Management API on port 8080
+    volumes:
+      - models:/models
+      - /var/run/docker.sock:/var/run/docker.sock  # To manage other containers
+    environment:
+      - HF_TOKEN=your_huggingface_token_here  # Optional, for gated models
+    restart: unless-stopped
+
+volumes:
+  models:
