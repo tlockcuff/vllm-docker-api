@@ -70,7 +70,98 @@ def view_pulled_models():
 @app.get("/available")
 def view_available_models(search: str = ""):
     models = api.list_models(search=search, sort="downloads", direction=-1, limit=20)
-    return [m.id for m in models]
+    model_details = []
+    for m in models:
+        model_info = {
+            "id": m.id,
+            "modelId": m.modelId,
+            "author": getattr(m, 'author', None),
+            "downloads": m.downloads,
+            "likes": m.likes,
+            "created_at": m.created_at.isoformat() if hasattr(m, 'created_at') and m.created_at else None,
+            "last_modified": m.last_modified.isoformat() if hasattr(m, 'last_modified') and m.last_modified else None,
+            "pipeline_tag": m.pipeline_tag,
+            "library_name": m.library_name,
+            "tags": m.tags,
+            "private": m.private,
+            "trending_score": getattr(m, 'trending_score', None),
+            "gated": getattr(m, 'gated', None),
+            "inference": getattr(m, 'inference', None),
+        }
+        model_details.append(model_info)
+    return model_details
+
+@app.get("/available/{model_id}")
+def get_model_details(model_id: str):
+    """Get detailed information for a specific model including description, config, and other metadata."""
+    try:
+        # Get basic model info from search results
+        models = api.list_models(search=model_id, limit=1)
+        basic_model = None
+        for m in models:
+            if m.id == model_id:
+                basic_model = m
+                break
+
+        if not basic_model:
+            raise HTTPException(status_code=404, detail="Model not found")
+
+        # Get detailed repo info
+        repo_details = repo_info(repo_id=model_id, repo_type="model", files_metadata=False)
+
+        # Extract additional metadata from card_data and config
+        card_data = repo_details.card_data
+        config = repo_details.config if hasattr(repo_details, 'config') and repo_details.config else {}
+
+        # Build comprehensive model details
+        model_info = {
+            "id": repo_details.id,
+            "modelId": repo_details.modelId,
+            "author": repo_details.author,
+            "downloads": repo_details.downloads,
+            "likes": repo_details.likes,
+            "created_at": repo_details.created_at.isoformat() if repo_details.created_at else None,
+            "last_modified": repo_details.last_modified.isoformat() if repo_details.last_modified else None,
+            "pipeline_tag": repo_details.pipeline_tag,
+            "library_name": repo_details.library_name,
+            "tags": repo_details.tags,
+            "private": repo_details.private,
+            "gated": repo_details.gated,
+            "inference": repo_details.inference,
+            "trending_score": getattr(repo_details, 'trending_score', None),
+            "usedStorage": getattr(repo_details, 'usedStorage', None),
+        }
+
+        # Add card data if available
+        if card_data:
+            card_fields = [
+                "base_model", "license", "language", "description",
+                "summary", "model_name", "model_type", "task_specific_params"
+            ]
+            for field in card_fields:
+                if hasattr(card_data, field) and getattr(card_data, field) is not None:
+                    model_info[field] = getattr(card_data, field)
+
+        # Add config data if available
+        if config:
+            # Extract context window and other model parameters from config
+            if 'max_position_embeddings' in config:
+                model_info['context_window'] = config['max_position_embeddings']
+            if 'vocab_size' in config:
+                model_info['vocab_size'] = config['vocab_size']
+            if 'hidden_size' in config:
+                model_info['hidden_size'] = config['hidden_size']
+            if 'num_attention_heads' in config:
+                model_info['num_attention_heads'] = config['num_attention_heads']
+            if 'num_hidden_layers' in config:
+                model_info['num_hidden_layers'] = config['num_hidden_layers']
+            if 'torch_dtype' in config:
+                model_info['torch_dtype'] = config['torch_dtype']
+
+        return model_info
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching model details: {str(e)}")
 
 @app.post("/pull/{model}")
 def pull_model(model: str, background_tasks: BackgroundTasks):
