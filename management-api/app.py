@@ -549,10 +549,12 @@ def show_running_models():
     running = []
     containers = docker_client.containers.list(filters={"name": "vllm-"})
     for cont in containers:
+        # Only process containers that actually start with "vllm-"
+        if not cont.name.startswith("vllm-"):
+            continue
+
         name = cont.name.replace("vllm-", "")
         model = None
-        host_port = None
-        url = None
 
         # Find the --model argument and extract the path
         cmd_args = cont.attrs["Config"]["Cmd"]
@@ -562,8 +564,10 @@ def show_running_models():
                 break
 
         # With host networking, vLLM runs on port 8000 directly
-        if cont.status == "running":
-            host_port = 8000
+        host_port = 8000 if cont.status == "running" else None
+        url = None
+
+        if host_port:
             # Use the actual host IP for external access
             import socket
             try:
