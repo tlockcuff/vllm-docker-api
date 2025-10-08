@@ -675,8 +675,11 @@ def start_model(model: str = Query(..., description="Model name to start"), tens
     docker_client.containers.run(
         "vllm/vllm-openai:latest",
         name=container_name,
+        # Construct the correct container path for the model
+        container_model_path = f"/models/{decoded_model.replace('/', '_')}"
+
         command=[
-            "--model", local_path,
+            "--model", container_model_path,  # Use container path instead of host path
             "--tensor-parallel-size", str(tensor_parallel_size),
             "--dtype", "auto",
             "--host", "0.0.0.0",  # Bind to all interfaces
@@ -684,7 +687,7 @@ def start_model(model: str = Query(..., description="Model name to start"), tens
             "--api-key", "token-abc123"  # Change as needed
         ],
         network_mode="host",  # Use host networking for external access
-        volumes={model_dir: {"bind": model_dir, "mode": "rw"}},
+        volumes={model_dir: {"bind": "/models", "mode": "rw"}},  # Mount models directory to /models in container
         device_requests=[
             {
                 "Driver": "nvidia",
