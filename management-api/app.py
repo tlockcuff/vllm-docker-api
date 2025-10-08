@@ -314,6 +314,40 @@ def view_pulled_models():
     """Get list of models that have been pulled to local storage"""
     return [d.replace('_', '/') for d in os.listdir(model_dir) if os.path.isdir(os.path.join(model_dir, d))]
 
+@app.get("/pulled/{model}/files",
+         summary="Get files in a pulled model directory",
+         description="Returns a list of files in a specific model directory to help debug model structure",
+         tags=["models"])
+def view_model_files(model: str = Query(..., description="Model name to check files for")):
+    """Get list of files in a model directory"""
+    decoded_model = unquote(model)
+    local_path = os.path.join(model_dir, decoded_model.replace("/", "_"))
+
+    if not os.path.exists(local_path):
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    try:
+        files = []
+        for root, dirs, filenames in os.walk(local_path):
+            for filename in filenames:
+                full_path = os.path.join(root, filename)
+                rel_path = os.path.relpath(full_path, local_path)
+                size = os.path.getsize(full_path)
+                files.append({
+                    "path": rel_path,
+                    "size": size,
+                    "size_formatted": format_bytes(size)
+                })
+
+        return {
+            "model": model,
+            "path": local_path,
+            "total_files": len(files),
+            "files": files
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading model files: {str(e)}")
+
 @app.get("/available",
          response_model=List[ModelInfo],
          summary="Search available models",
@@ -613,8 +647,25 @@ def start_model(model: str = Query(..., description="Model name to start"), tens
     # URL decode the model name to handle special characters like '/'
     decoded_model = unquote(model)
     local_path = os.path.join(model_dir, decoded_model.replace("/", "_"))
+
+    # Check if model directory exists
     if not os.path.exists(local_path):
         raise HTTPException(status_code=404, detail="Model not pulled")
+
+    # Check if config.json exists in the model directory
+    config_path = os.path.join(local_path, "config.json")
+    if not os.path.exists(config_path):
+        raise HTTPException(status_code=404, detail=f"Model config.json not found at {config_path}. Model may not be properly downloaded.")
+
+    # Additional validation - check for other required files
+    required_files = ["config.json", "tokenizer.json", "tokenizer_config.json"]
+    missing_files = []
+    for file in required_files:
+        if not os.path.exists(os.path.join(local_path, file)):
+            missing_files.append(file)
+
+    if missing_files:
+        raise HTTPException(status_code=404, detail=f"Model is missing required files: {', '.join(missing_files)}")
 
     container_name = f"vllm-{decoded_model.replace('/', '_')}"
     if any(c.name == container_name for c in docker_client.containers.list(all=True)):
