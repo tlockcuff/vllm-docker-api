@@ -561,12 +561,18 @@ def show_running_models():
                 model = cmd_args[i + 1]
                 break
 
-        # Get the host port from port bindings
-        if cont.attrs["NetworkSettings"]["Ports"]:
-            port_bindings = cont.attrs["NetworkSettings"]["Ports"]
-            if "8000/tcp" in port_bindings and port_bindings["8000/tcp"]:
-                host_port = int(port_bindings["8000/tcp"][0]["HostPort"])
-                url = f"http://localhost:{host_port}"
+        # With host networking, vLLM runs on port 8000 directly
+        if cont.status == "running":
+            host_port = 8000
+            # Use the actual host IP for external access
+            import socket
+            try:
+                # Get the primary IP address of the host
+                hostname = socket.gethostname()
+                host_ip = socket.gethostbyname(hostname)
+                url = f"http://{host_ip}:8000"
+            except:
+                url = "http://localhost:8000"
 
         status = cont.status
         running.append({
@@ -610,7 +616,7 @@ def start_model(model: str = Query(..., description="Model name to start"), tens
     if any(c.name == container_name for c in docker_client.containers.list(all=True)):
         raise HTTPException(status_code=400, detail="Container already exists")
 
-    # Run vLLM container with multi-GPU support
+    # Run vLLM container with multi-GPU support and host networking
     docker_client.containers.run(
         "vllm/vllm-openai:latest",
         name=container_name,
@@ -618,9 +624,11 @@ def start_model(model: str = Query(..., description="Model name to start"), tens
             "--model", local_path,
             "--tensor-parallel-size", str(tensor_parallel_size),
             "--dtype", "auto",
+            "--host", "0.0.0.0",  # Bind to all interfaces
+            "--port", "8000",      # Explicit port
             "--api-key", "token-abc123"  # Change as needed
         ],
-        ports={"8000/tcp": None},  # Host port auto-assigned; query container for it
+        network_mode="host",  # Use host networking for external access
         volumes={model_dir: {"bind": model_dir, "mode": "rw"}},
         device_requests=[
             {
