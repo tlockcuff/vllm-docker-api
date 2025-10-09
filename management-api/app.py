@@ -15,6 +15,7 @@ from huggingface_hub import HfApi, hf_hub_url
 import httpx
 import docker as docker_sdk
 import requests_unixsocket
+import http.client
 
 
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "changeme")
@@ -359,60 +360,100 @@ def gateway_docs():
     return get_swagger_ui_html(openapi_url="/gateway/openapi.json", title="Gateway API Docs")
 
 
+class UnixSocketHTTP:
+    def __init__(self, socket_path: str):
+        self.socket_path = socket_path
+
+    def _connect(self) -> http.client.HTTPConnection:
+        class UnixHTTPConnection(http.client.HTTPConnection):
+            def __init__(self, path: str):
+                super().__init__("localhost")
+                self.unix_path = path
+
+            def connect(self):
+                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                sock.connect(self.unix_path)
+                self.sock = sock
+
+        return UnixHTTPConnection(self.socket_path)
+
+    def request(self, method: str, path: str, headers: Optional[Dict[str, str]] = None, body: Optional[bytes] = None) -> http.client.HTTPResponse:
+        conn = self._connect()
+        try:
+            conn.putrequest(method, path)
+            hdrs = headers.copy() if headers else {}
+            if "Host" not in hdrs:
+                hdrs["Host"] = "docker"
+            for k, v in hdrs.items():
+                conn.putheader(k, v)
+            conn.endheaders()
+            if body:
+                conn.send(body)
+            response = conn.getresponse()
+            return response
+        except Exception as e:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            raise e
+
+    def request_json(self, method: str, path: str, json_body: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> Dict[str, Any]:
+        import json as _json
+        body_bytes = None
+        headers = {"Content-Type": "application/json"}
+        if json_body is not None:
+            body_bytes = _json.dumps(json_body).encode("utf-8")
+            headers["Content-Length"] = str(len(body_bytes))
+        resp = self.request(method, path, headers=headers, body=body_bytes)
+        data = resp.read()
+        if resp.status >= 400:
+            try:
+                msg = _json.loads(data.decode("utf-8"))
+            except Exception:
+                msg = data.decode("utf-8", errors="ignore")
+            raise HTTPException(status_code=resp.status, detail=msg if isinstance(msg, str) else msg.get("message", msg))
+        if not data:
+            return {}
+        return _json.loads(data.decode("utf-8"))
+
+
 class DockerEngineClient:
     def __init__(self, docker_sock: str = "/var/run/docker.sock"):
         if not os.path.exists(docker_sock):
             raise HTTPException(status_code=500, detail=f"Docker socket not found at {docker_sock}. Mount it into the management container (e.g., -v /var/run/docker.sock:/var/run/docker.sock)")
-        # Install unixsocket adapter
-        try:
-            requests_unixsocket.monkeypatch()
-        except Exception:
-            pass
-        self.session = requests_unixsocket.Session()
-        # URL-encode the socket path
-        encoded = docker_sock.replace("/", "%2F")
-        self.base = f"http+unix://{encoded}"
-
-    def _url(self, path: str) -> str:
-        if not path.startswith("/"):
-            path = "/" + path
-        return self.base + path
+        self.http = UnixSocketHTTP(docker_sock)
 
     def version(self) -> Dict[str, Any]:
-        r = self.session.get(self._url("/version"), timeout=5)
-        r.raise_for_status()
-        return r.json()
+        return self.http.request_json("GET", "/version")
 
     def containers_create(self, config: Dict[str, Any]) -> str:
-        r = self.session.post(self._url("/containers/create"), json=config, timeout=30)
-        if r.status_code == 409 and "message" in r.json():
-            raise HTTPException(status_code=409, detail=r.json()["message"])
-        r.raise_for_status()
-        return r.json()["Id"]
+        resp = self.http.request_json("POST", "/containers/create", json_body=config)
+        return resp["Id"]
 
     def containers_start(self, container_id: str) -> None:
-        r = self.session.post(self._url(f"/containers/{container_id}/start"), timeout=30)
-        r.raise_for_status()
+        _ = self.http.request_json("POST", f"/containers/{container_id}/start")
 
     def containers_wait(self, container_id: str, condition: str = "not-running") -> Dict[str, Any]:
-        r = self.session.post(self._url(f"/containers/{container_id}/wait?condition={condition}"), timeout=None)
-        r.raise_for_status()
-        return r.json()
+        return self.http.request_json("POST", f"/containers/{container_id}/wait?condition={condition}")
 
     def containers_logs(self, container_id: str, stdout: bool = True, stderr: bool = False, tail: Optional[int] = None) -> str:
         params = [f"stdout={str(stdout).lower()}", f"stderr={str(stderr).lower()}"]
         if tail is not None:
             params.append(f"tail={tail}")
         qs = "&".join(params)
-        r = self.session.get(self._url(f"/containers/{container_id}/logs?{qs}"), timeout=30)
-        r.raise_for_status()
-        return r.text
+        resp = self.http.request("GET", f"/containers/{container_id}/logs?{qs}")
+        data = resp.read().decode("utf-8", errors="ignore")
+        if resp.status >= 400:
+            raise HTTPException(status_code=resp.status, detail=data)
+        return data
 
     def containers_remove(self, container_id: str, force: bool = False) -> None:
-        r = self.session.delete(self._url(f"/containers/{container_id}?force={'true' if force else 'false'}"), timeout=30)
-        # 404 is fine for remove
-        if r.status_code not in (204, 404):
-            r.raise_for_status()
+        resp = self.http.request("DELETE", f"/containers/{container_id}?force={'true' if force else 'false'}")
+        # 404 is fine; 204 expected
+        if resp.status not in (204, 404):
+            data = resp.read().decode("utf-8", errors="ignore")
+            raise HTTPException(status_code=resp.status, detail=data)
 
     def containers_list(self, all_containers: bool = True, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         import json as _json
@@ -420,16 +461,10 @@ class DockerEngineClient:
         if filters:
             params.append("filters=" + _json.dumps(filters))
         qs = "&".join(params)
-        r = self.session.get(self._url(f"/containers/json?{qs}"), timeout=10)
-        r.raise_for_status()
-        return r.json()
+        return self.http.request_json("GET", f"/containers/json?{qs}")
 
     def containers_inspect(self, container_id: str) -> Dict[str, Any]:
-        r = self.session.get(self._url(f"/containers/{container_id}/json"), timeout=10)
-        if r.status_code == 404:
-            raise HTTPException(status_code=404, detail="Not found")
-        r.raise_for_status()
-        return r.json()
+        return self.http.request_json("GET", f"/containers/{container_id}/json")
 
     def run(self, image: str, command: List[str], name: Optional[str] = None, detach: bool = True, remove: bool = False,
             environment: Optional[Dict[str, str]] = None, volumes: Optional[Dict[str, Dict[str, str]]] = None,
@@ -443,11 +478,17 @@ class DockerEngineClient:
         host_config: Dict[str, Any] = {"Binds": binds}
         if network:
             host_config["NetworkMode"] = network
-        if device_ids:
+        if device_ids and len(device_ids) > 0:
             host_config["DeviceRequests"] = [{
                 "Count": len(device_ids),
                 "Capabilities": [["gpu"]],
                 "DeviceIDs": device_ids,
+            }]
+        else:
+            # Allow Docker to expose all GPUs when requested implicitly
+            host_config["DeviceRequests"] = [{
+                "Count": -1,
+                "Capabilities": [["gpu"]],
             }]
         config: Dict[str, Any] = {
             "Image": image,
