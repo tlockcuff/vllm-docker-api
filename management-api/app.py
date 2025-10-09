@@ -360,11 +360,12 @@ def gateway_docs():
 
 
 def docker_client():
-    # docker-py handles unix sockets via base_url='unix://...'
-    # But ensure DOCKER_HOST does not override with http+docker
-    os.environ.pop("DOCKER_HOST", None)
+    # Force docker SDK to use the unix socket via DOCKER_HOST
     docker_sock = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
-    return docker_sdk.DockerClient(base_url=f"unix://{docker_sock}")
+    os.environ["DOCKER_HOST"] = f"unix://{docker_sock}"
+    os.environ.pop("DOCKER_TLS_VERIFY", None)
+    os.environ.pop("DOCKER_CERT_PATH", None)
+    return docker_sdk.from_env()
 
 
 def query_gpu_stats(cli: docker_sdk.DockerClient) -> List[Dict[str, Any]]:
