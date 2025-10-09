@@ -362,16 +362,23 @@ def gateway_docs():
 def docker_client():
     # Use plain unix socket API client (no http+docker scheme)
     docker_sock = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
-    os.environ.pop("DOCKER_HOST", None)
     os.environ.pop("DOCKER_TLS_VERIFY", None)
     os.environ.pop("DOCKER_CERT_PATH", None)
     # Helpful error if the Docker socket isn't mounted into the container
     if not os.path.exists(docker_sock):
         raise HTTPException(status_code=500, detail=f"Docker socket not found at {docker_sock}. Mount it into the management container (e.g., -v /var/run/docker.sock:/var/run/docker.sock)")
-    # Normalize to a valid unix scheme URL (unix://var/run/docker.sock)
-    normalized = f"unix://{docker_sock.lstrip('/')}"
-    api = docker_sdk.APIClient(base_url=normalized, version="auto", timeout=60)
-    return docker_sdk.DockerClient(api_client=api)
+    # Build client from environment to ensure proper http+docker adapter is mounted
+    try:
+        kwargs = docker_sdk.utils.kwargs_from_env()
+        # If DOCKER_HOST is not set, force unix socket base_url
+        if not kwargs.get("base_url"):
+            kwargs["base_url"] = f"unix://{docker_sock}"
+        kwargs["version"] = "auto"
+        kwargs["timeout"] = 60
+        api = docker_sdk.APIClient(**kwargs)
+        return docker_sdk.DockerClient(api_client=api)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to initialize Docker client: {e}")
 
 
 def query_gpu_stats(cli: docker_sdk.DockerClient) -> List[Dict[str, Any]]:
