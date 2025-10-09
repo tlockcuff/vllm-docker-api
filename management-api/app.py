@@ -103,25 +103,47 @@ def models_available(query: str, _: Any = Depends(auth)):
     ]
 
 
-@app.post("/models/download", tags=["Models"], summary="Download/cache model files")
-def models_download(req: DownloadRequest, _: Any = Depends(auth)):
-    api = HfApi()
-    dest = os.environ.get("HF_HOME", "/models")
-    patterns = req.patterns or ["*"]
-    for pattern in patterns:
-        api.snapshot_download(repo_id=req.repo_id, revision=req.revision, local_dir=dest, allow_patterns=pattern)
-    return {"status": "ok", "cached_in": dest}
-
-
-@app.get("/models/local", tags=["Models"], summary="List cached model files")
+@app.get("/models/local", tags=["Models"], summary="List cached models (grouped by repo)")
 def models_local(_: Any = Depends(auth)):
     base = os.environ.get("HF_HOME", "/models")
-    out: List[str] = []
-    for root, _, files in os.walk(base):
-        for f in files:
-            if f.endswith(".json") or f.endswith(".safetensors"):
-                out.append(os.path.join(root, f).replace(base + "/", ""))
-    return sorted(out)
+    if not os.path.exists(base):
+        return []
+    models: List[Dict[str, Any]] = []
+    for entry in os.listdir(base):
+        repo_path = os.path.join(base, entry)
+        if not os.path.isdir(repo_path):
+            continue
+        total_bytes = 0
+        files_total = 0
+        has_safetensors = False
+        has_config = False
+        sample_files: List[str] = []
+        for root, _, files in os.walk(repo_path):
+            for f in files:
+                files_total += 1
+                full = os.path.join(root, f)
+                try:
+                    total_bytes += os.path.getsize(full)
+                except Exception:
+                    pass
+                if f.endswith(".safetensors"):
+                    has_safetensors = True
+                if f == "config.json":
+                    has_config = True
+                # collect up to 5 relative file paths for preview
+                if len(sample_files) < 5 and (f.endswith(".safetensors") or f.endswith(".json")):
+                    rel = full.replace(base + "/", "")
+                    sample_files.append(rel)
+        models.append({
+            "repo_id": entry,
+            "files_total": files_total,
+            "size_bytes": total_bytes,
+            "has_config": has_config,
+            "has_safetensors": has_safetensors,
+            "sample_files": sample_files,
+        })
+    models.sort(key=lambda m: m["repo_id"])
+    return models
 
 
 # -------------------------------
@@ -145,6 +167,7 @@ class DownloadJobStatus(BaseModel):
     downloaded_bytes: int
     rate_bps: float
     eta_seconds: Optional[float]
+    progress_percent: float
     current_file: Optional[str]
     current_file_bytes: int
     current_file_size: int
@@ -160,6 +183,7 @@ def _job_status_snapshot(job_id: str) -> DownloadJobStatus:
         raise HTTPException(status_code=404, detail="Job not found")
     remaining = max(0, s["total_bytes"] - s["downloaded_bytes"]) if s["total_bytes"] else 0
     eta = (remaining / s["rate_bps"]) if s["rate_bps"] > 0 else None
+    progress = (float(s["downloaded_bytes"]) / float(s["total_bytes"]) * 100.0) if s["total_bytes"] > 0 else 0.0
     return DownloadJobStatus(
         job_id=job_id,
         status=s["status"],
@@ -171,6 +195,7 @@ def _job_status_snapshot(job_id: str) -> DownloadJobStatus:
         downloaded_bytes=s["downloaded_bytes"],
         rate_bps=s["rate_bps"],
         eta_seconds=eta,
+        progress_percent=progress,
         current_file=s.get("current_file"),
         current_file_bytes=s.get("current_file_bytes", 0),
         current_file_size=s.get("current_file_size", 0),
@@ -302,6 +327,14 @@ def cancel_download_job(job_id: str, _: Any = Depends(auth)):
         raise HTTPException(status_code=404, detail="Job not found")
     s["cancel"] = True
     return {"status": "cancelling"}
+
+
+@app.get("/models/downloads", response_model=List[DownloadJobStatus], tags=["Models"], summary="List all download jobs")
+def list_download_jobs(_: Any = Depends(auth)):
+    return [
+        _job_status_snapshot(job_id)
+        for job_id in list(DOWNLOAD_JOBS.keys())
+    ]
 
 
 def docker_client():
