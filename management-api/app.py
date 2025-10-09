@@ -111,40 +111,43 @@ def models_local(_: Any = Depends(auth)):
     base = os.environ.get("HF_HOME", "/models")
     if not os.path.exists(base):
         return []
-    models: List[Dict[str, Any]] = []
-    for entry in os.listdir(base):
-        repo_path = os.path.join(base, entry)
-        if not os.path.isdir(repo_path):
-            continue
-        total_bytes = 0
-        files_total = 0
-        has_safetensors = False
-        has_config = False
-        sample_files: List[str] = []
-        for root, _, files in os.walk(repo_path):
-            for f in files:
-                files_total += 1
-                full = os.path.join(root, f)
-                try:
-                    total_bytes += os.path.getsize(full)
-                except Exception:
-                    pass
-                if f.endswith(".safetensors"):
-                    has_safetensors = True
-                if f == "config.json":
-                    has_config = True
-                # collect up to 5 relative file paths for preview
-                if len(sample_files) < 5 and (f.endswith(".safetensors") or f.endswith(".json")):
-                    rel = full.replace(base + "/", "")
-                    sample_files.append(rel)
-        models.append({
-            "repo_id": entry,
-            "files_total": files_total,
-            "size_bytes": total_bytes,
-            "has_config": has_config,
-            "has_safetensors": has_safetensors,
-            "sample_files": sample_files,
-        })
+    blacklist_first = {".cache", "cache", "hub", "datasets", "spaces", "spaces-temp", "metal", "original"}
+    aggregations: Dict[str, Dict[str, Any]] = {}
+    for root, _, files in os.walk(base):
+        for f in files:
+            rel = os.path.join(root, f).replace(base + "/", "")
+            parts = rel.split("/")
+            if not parts:
+                continue
+            first = parts[0]
+            if first in blacklist_first or first.startswith('.'):
+                continue
+            # Determine repo key as <org>/<repo> when available
+            if len(parts) >= 2:
+                repo_key = f"{parts[0]}/{parts[1]}"
+            else:
+                repo_key = parts[0]
+            agg = aggregations.setdefault(repo_key, {
+                "repo_id": repo_key,
+                "files_total": 0,
+                "size_bytes": 0,
+                "has_config": False,
+                "has_safetensors": False,
+                "sample_files": [],
+            })
+            agg["files_total"] += 1
+            try:
+                agg["size_bytes"] += os.path.getsize(os.path.join(base, rel))
+            except Exception:
+                pass
+            if f.endswith(".safetensors"):
+                agg["has_safetensors"] = True
+            if f == "config.json":
+                agg["has_config"] = True
+            if len(agg["sample_files"]) < 5 and (f.endswith(".safetensors") or f.endswith(".json")):
+                agg["sample_files"].append(rel)
+    # Only include repos that look like actual models (have config or safetensors)
+    models = [m for m in aggregations.values() if m["has_config"] or m["has_safetensors"]]
     models.sort(key=lambda m: m["repo_id"])
     return models
 

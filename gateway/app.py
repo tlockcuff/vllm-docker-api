@@ -34,16 +34,20 @@ def health():
 
 async def get_instances() -> Dict[str, Dict[str, Any]]:
     headers = {"Authorization": f"Bearer {os.getenv('ADMIN_TOKEN', '')}"} if os.getenv('ADMIN_TOKEN') else {}
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(f"{ADMIN_BASE_URL}/instances", headers=headers)
-        r.raise_for_status()
-        out = {}
-        for item in r.json():
-            labels = item.get("labels", {})
-            name = labels.get("vllm-instance") or item.get("name")
-            port = labels.get("port")
-            out[name] = {"name": name, "port": int(port) if port else None, "container": item.get("name")}
-        return out
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(f"{ADMIN_BASE_URL}/instances", headers=headers)
+            r.raise_for_status()
+            out: Dict[str, Dict[str, Any]] = {}
+            for item in r.json():
+                labels = item.get("labels", {})
+                name = labels.get("vllm-instance") or item.get("name")
+                port = labels.get("port")
+                out[name] = {"name": name, "port": int(port) if port else None, "container": item.get("name")}
+            return out
+    except Exception:
+        # On any error communicating with admin, return empty mapping
+        return {}
 
 
 def instance_base_url(instance: Dict[str, Any]) -> str:
@@ -57,7 +61,8 @@ def instance_base_url(instance: Dict[str, Any]) -> str:
 @app.get("/v1/models", tags=["OpenAI"], summary="List available models")
 async def list_models(_: Any = Depends(auth)):
     instances = await get_instances()
-    data = {"data": [{"id": name, "object": "model"} for name in instances.keys()]}
+    # Return OpenAI-compatible shape, even when empty, not a 404
+    data = {"object": "list", "data": [{"id": name, "object": "model"} for name in sorted(instances.keys())]}
     return JSONResponse(data)
 
 
@@ -69,7 +74,15 @@ async def proxy_openai(request: Request, path: str, _: Any = Depends(auth)):
     instances = await get_instances()
     instance = instances.get(model)
     if not instance:
-        raise HTTPException(status_code=404, detail="model instance not found")
+        # Return OpenAI-compatible error shape and 404 if model not found
+        return JSONResponse({
+            "error": {
+                "message": f"The model '{model}' does not exist or is not available.",
+                "type": "invalid_request_error",
+                "param": "model",
+                "code": "model_not_found"
+            }
+        }, status_code=404)
     base = instance_base_url(instance)
     target = f"{base}/v1/{path}"
     # stream passthrough if stream=True
