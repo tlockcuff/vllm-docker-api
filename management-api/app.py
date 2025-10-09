@@ -367,6 +367,11 @@ def docker_client():
     # Helpful error if the Docker socket isn't mounted into the container
     if not os.path.exists(docker_sock):
         raise HTTPException(status_code=500, detail=f"Docker socket not found at {docker_sock}. Mount it into the management container (e.g., -v /var/run/docker.sock:/var/run/docker.sock)")
+    # Ensure requests installs the http+docker adapter for urllib3 2.x
+    try:
+        requests_unixsocket.monkeypatch()
+    except Exception:
+        pass
     # Build client from environment to ensure proper http+docker adapter is mounted
     try:
         kwargs = docker_sdk.utils.kwargs_from_env()
