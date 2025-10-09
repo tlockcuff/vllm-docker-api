@@ -359,47 +359,152 @@ def gateway_docs():
     return get_swagger_ui_html(openapi_url="/gateway/openapi.json", title="Gateway API Docs")
 
 
-def docker_client():
-    # Use plain unix socket API client (no http+docker scheme)
+class DockerEngineClient:
+    def __init__(self, docker_sock: str = "/var/run/docker.sock"):
+        if not os.path.exists(docker_sock):
+            raise HTTPException(status_code=500, detail=f"Docker socket not found at {docker_sock}. Mount it into the management container (e.g., -v /var/run/docker.sock:/var/run/docker.sock)")
+        # Install unixsocket adapter
+        try:
+            requests_unixsocket.monkeypatch()
+        except Exception:
+            pass
+        self.session = requests_unixsocket.Session()
+        # URL-encode the socket path
+        encoded = docker_sock.replace("/", "%2F")
+        self.base = f"http+unix://{encoded}"
+
+    def _url(self, path: str) -> str:
+        if not path.startswith("/"):
+            path = "/" + path
+        return self.base + path
+
+    def version(self) -> Dict[str, Any]:
+        r = self.session.get(self._url("/version"), timeout=5)
+        r.raise_for_status()
+        return r.json()
+
+    def containers_create(self, config: Dict[str, Any]) -> str:
+        r = self.session.post(self._url("/containers/create"), json=config, timeout=30)
+        if r.status_code == 409 and "message" in r.json():
+            raise HTTPException(status_code=409, detail=r.json()["message"])
+        r.raise_for_status()
+        return r.json()["Id"]
+
+    def containers_start(self, container_id: str) -> None:
+        r = self.session.post(self._url(f"/containers/{container_id}/start"), timeout=30)
+        r.raise_for_status()
+
+    def containers_wait(self, container_id: str, condition: str = "not-running") -> Dict[str, Any]:
+        r = self.session.post(self._url(f"/containers/{container_id}/wait?condition={condition}"), timeout=None)
+        r.raise_for_status()
+        return r.json()
+
+    def containers_logs(self, container_id: str, stdout: bool = True, stderr: bool = False, tail: Optional[int] = None) -> str:
+        params = [f"stdout={str(stdout).lower()}", f"stderr={str(stderr).lower()}"]
+        if tail is not None:
+            params.append(f"tail={tail}")
+        qs = "&".join(params)
+        r = self.session.get(self._url(f"/containers/{container_id}/logs?{qs}"), timeout=30)
+        r.raise_for_status()
+        return r.text
+
+    def containers_remove(self, container_id: str, force: bool = False) -> None:
+        r = self.session.delete(self._url(f"/containers/{container_id}?force={'true' if force else 'false'}"), timeout=30)
+        # 404 is fine for remove
+        if r.status_code not in (204, 404):
+            r.raise_for_status()
+
+    def containers_list(self, all_containers: bool = True, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        import json as _json
+        params = [f"all={'1' if all_containers else '0'}"]
+        if filters:
+            params.append("filters=" + _json.dumps(filters))
+        qs = "&".join(params)
+        r = self.session.get(self._url(f"/containers/json?{qs}"), timeout=10)
+        r.raise_for_status()
+        return r.json()
+
+    def containers_inspect(self, container_id: str) -> Dict[str, Any]:
+        r = self.session.get(self._url(f"/containers/{container_id}/json"), timeout=10)
+        if r.status_code == 404:
+            raise HTTPException(status_code=404, detail="Not found")
+        r.raise_for_status()
+        return r.json()
+
+    def run(self, image: str, command: List[str], name: Optional[str] = None, detach: bool = True, remove: bool = False,
+            environment: Optional[Dict[str, str]] = None, volumes: Optional[Dict[str, Dict[str, str]]] = None,
+            labels: Optional[Dict[str, str]] = None, network: Optional[str] = None, device_ids: Optional[List[str]] = None) -> str:
+        # Build HostConfig
+        binds = []
+        if volumes:
+            for vol_name, mount in volumes.items():
+                bind = f"{vol_name}:{mount.get('bind')}:{mount.get('mode','rw')}"
+                binds.append(bind)
+        host_config: Dict[str, Any] = {"Binds": binds}
+        if network:
+            host_config["NetworkMode"] = network
+        if device_ids:
+            host_config["DeviceRequests"] = [{
+                "Count": len(device_ids),
+                "Capabilities": [["gpu"]],
+                "DeviceIDs": device_ids,
+            }]
+        config: Dict[str, Any] = {
+            "Image": image,
+            "Cmd": command,
+            "Env": [f"{k}={v}" for k, v in (environment or {}).items()],
+            "Labels": labels or {},
+            "HostConfig": host_config,
+        }
+        if name:
+            config["name"] = name
+        cid = self.containers_create(config)
+        try:
+            self.containers_start(cid)
+        except Exception:
+            # On failure to start, remove created container
+            try:
+                self.containers_remove(cid, force=True)
+            except Exception:
+                pass
+            raise
+        if not detach:
+            self.containers_wait(cid)
+            if remove:
+                self.containers_remove(cid, force=True)
+        return cid
+
+
+def docker_client() -> DockerEngineClient:
     docker_sock = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
-    os.environ.pop("DOCKER_TLS_VERIFY", None)
-    os.environ.pop("DOCKER_CERT_PATH", None)
-    # Helpful error if the Docker socket isn't mounted into the container
-    if not os.path.exists(docker_sock):
-        raise HTTPException(status_code=500, detail=f"Docker socket not found at {docker_sock}. Mount it into the management container (e.g., -v /var/run/docker.sock:/var/run/docker.sock)")
-    # Ensure requests installs the http+docker adapter for urllib3 2.x
     try:
-        requests_unixsocket.monkeypatch()
-    except Exception:
-        pass
-    # Build client from environment to ensure proper http+docker adapter is mounted
-    try:
-        # Force DOCKER_HOST to unix socket so docker.from_env registers http+docker adapter
-        os.environ["DOCKER_HOST"] = f"unix://{docker_sock}"
-        client = docker_sdk.DockerClient.from_env()
-        # Touch the server to force adapter initialization and early error
-        _ = client.api.version()
+        client = DockerEngineClient(docker_sock=docker_sock)
+        # Validate connectivity early
+        _ = client.version()
         return client
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to initialize Docker client: {e}")
 
 
-def query_gpu_stats(cli: docker_sdk.DockerClient) -> List[Dict[str, Any]]:
+def query_gpu_stats(cli: Any) -> List[Dict[str, Any]]:
     image = os.getenv("CUDA_INFO_IMAGE", "nvidia/cuda:12.3.2-base-ubuntu22.04")
     cmd = ["bash", "-lc", "nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free --format=csv,noheader,nounits"]
     try:
-        device_request = docker_sdk.types.DeviceRequest(count=-1, capabilities=[["gpu"]])
-        # Run synchronously to avoid race with container removal and reliably capture output
-        logs_bytes = cli.containers.run(
-            image,
+        # Run a short-lived container with GPU access
+        cid = cli.run(
+            image=image,
             command=cmd,
-            detach=False,
-            remove=True,
-            device_requests=[device_request],
-            stderr=True,
-            stdout=True,
+            detach=True,
+            remove=False,
+            device_ids=None,  # all GPUs by default via Count below
+            environment=None,
+            volumes=None,
+            labels={"purpose": "gpu-query"},
         )
-        logs = logs_bytes.decode("utf-8", errors="ignore") if isinstance(logs_bytes, (bytes, bytearray)) else str(logs_bytes)
+        # Wait for completion and collect logs
+        cli.containers_wait(cid)
+        logs = cli.containers_logs(cid, stdout=True, stderr=False)
+        cli.containers_remove(cid, force=True)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to query GPUs: {e}")
     stats: List[Dict[str, Any]] = []
@@ -474,9 +579,6 @@ def create_instance(req: InstanceRequest, _: Any = Depends(auth)):
     device_ids = [str(i) for i in allocation]
     tp_size = len(device_ids)
     labels["device_ids"] = ",".join(device_ids)
-    device_request = docker_sdk.types.DeviceRequest(
-        count=len(device_ids), capabilities=[["gpu"]], device_ids=device_ids
-    )
 
     env = {
         "HF_HOME": "/models",
@@ -488,51 +590,51 @@ def create_instance(req: InstanceRequest, _: Any = Depends(auth)):
 
     # Create container without publishing port on host; internal network only
     try:
-        container = cli.containers.run(
-            VLLM_IMAGE,
+        container_id = cli.run(
+            image=VLLM_IMAGE,
             name=container_name,
             command=cmd,
             detach=True,
+            remove=False,
             network=DOCKER_NETWORK,
-            device_requests=[device_request],
+            device_ids=device_ids,
             environment=env,
             volumes={
-                # mount the named volume from compose
                 MODELS_VOLUME_NAME: {"bind": "/models", "mode": "rw"},
             },
             labels=labels,
         )
-    except docker_sdk.errors.APIError as e:
-        # Surface Docker daemon error back to client
-        detail = getattr(e, 'explanation', str(e))
-        raise HTTPException(status_code=500, detail=f"Docker failed to start vLLM: {detail}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start vLLM container: {e}")
 
-    return {"id": container.id, "name": req.name, "port": port, "gpus": device_ids, "tp": tp_size}
+    return {"id": container_id, "name": req.name, "port": port, "gpus": device_ids, "tp": tp_size}
 
 
 @app.get("/instances", tags=["Instances"], summary="List vLLM workers with health")
 def list_instances(_: Any = Depends(auth)):
     cli = docker_client()
-    containers = cli.containers.list(all=True, filters={"label": "managed-by=management-api"})
+    containers = cli.containers_list(all_containers=True, filters={"label": ["managed-by=management-api"]})
     out: List[Dict[str, Any]] = []
     for c in containers:
         # try to check health endpoint of the worker
         health = None
         try:
             import requests
-            port = c.labels.get("port")
-            if port:
-                r = requests.get(f"http://{c.name}:{port}/health", timeout=1.5)
+            labels = c.get("Labels") or {}
+            port = labels.get("port")
+            name = (c.get("Names") or [None])[0]
+            if name and name.startswith("/"):
+                name = name[1:]
+            if port and name:
+                r = requests.get(f"http://{name}:{port}/health", timeout=1.5)
                 health = r.json() if r.ok else {"status": "unhealthy"}
         except Exception:
             health = {"status": "unknown"}
         out.append({
-            "id": c.id,
-            "name": c.name,
-            "status": c.status,
-            "labels": c.labels,
+            "id": c.get("Id"),
+            "name": name or c.get("Id"),
+            "status": c.get("State"),
+            "labels": labels,
             "health": health,
         })
     return out
@@ -541,26 +643,19 @@ def list_instances(_: Any = Depends(auth)):
 @app.get("/instances/{container_id}", tags=["Instances"], summary="Get worker details")
 def get_instance(container_id: str, _: Any = Depends(auth)):
     cli = docker_client()
-    try:
-        c = cli.containers.get(container_id)
-    except docker_sdk.errors.NotFound:
-        raise HTTPException(status_code=404, detail="Not found")
+    c = cli.containers_inspect(container_id)
     return {
-        "id": c.id,
-        "name": c.name,
-        "status": c.status,
-        "labels": c.labels,
+        "id": c.get("Id"),
+        "name": c.get("Name", "").lstrip("/"),
+        "status": ((c.get("State") or {}).get("Status")),
+        "labels": c.get("Config", {}).get("Labels", {}),
     }
 
 
 @app.delete("/instances/{container_id}", tags=["Instances"], summary="Stop and remove worker")
 def delete_instance(container_id: str, _: Any = Depends(auth)):
     cli = docker_client()
-    try:
-        c = cli.containers.get(container_id)
-        c.remove(force=True)
-    except docker_sdk.errors.NotFound:
-        raise HTTPException(status_code=404, detail="Not found")
+    cli.containers_remove(container_id, force=True)
     return {"status": "deleted"}
 
 
