@@ -374,14 +374,12 @@ def docker_client():
         pass
     # Build client from environment to ensure proper http+docker adapter is mounted
     try:
-        kwargs = docker_sdk.utils.kwargs_from_env()
-        # If DOCKER_HOST is not set, force unix socket base_url
-        if not kwargs.get("base_url"):
-            kwargs["base_url"] = f"unix://{docker_sock}"
-        kwargs["version"] = "auto"
-        kwargs["timeout"] = 60
-        api = docker_sdk.APIClient(**kwargs)
-        return docker_sdk.DockerClient(api_client=api)
+        # Force DOCKER_HOST to unix socket so docker.from_env registers http+docker adapter
+        os.environ["DOCKER_HOST"] = f"unix://{docker_sock}"
+        client = docker_sdk.DockerClient.from_env()
+        # Touch the server to force adapter initialization and early error
+        _ = client.api.version()
+        return client
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to initialize Docker client: {e}")
 
