@@ -15,6 +15,7 @@ from huggingface_hub import HfApi, hf_hub_url
 import httpx
 import docker as docker_sdk
 import requests_unixsocket
+import requests
 
 
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "changeme")
@@ -117,16 +118,13 @@ def models_local(_: Any = Depends(auth)):
         for f in files:
             rel = os.path.join(root, f).replace(base + "/", "")
             parts = rel.split("/")
-            if not parts:
+            if not parts or len(parts) < 2:
                 continue
             first = parts[0]
             if first in blacklist_first or first.startswith('.'):
                 continue
             # Determine repo key as <org>/<repo> when available
-            if len(parts) >= 2:
-                repo_key = f"{parts[0]}/{parts[1]}"
-            else:
-                repo_key = parts[0]
+            repo_key = f"{parts[0]}/{parts[1]}"
             agg = aggregations.setdefault(repo_key, {
                 "repo_id": repo_key,
                 "files_total": 0,
@@ -363,9 +361,17 @@ def gateway_docs():
 
 
 def docker_client():
-    # Prefer unix socket to avoid http+docker URL issues behind proxies
-    base_url = os.getenv("DOCKER_HOST", "unix:///var/run/docker.sock")
-    return docker_sdk.DockerClient(base_url=base_url)
+    # Robust unix-socket client that mounts http+docker adapter explicitly
+    docker_sock = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
+    try:
+        from docker.transport.unixconn import UnixHTTPAdapter  # type: ignore
+        session = requests.Session()
+        session.mount("http+docker://", UnixHTTPAdapter(docker_sock))
+        api = docker_sdk.APIClient(base_url="http+docker://localhost", version="auto", timeout=60, session=session)
+        return docker_sdk.DockerClient(api_client=api)
+    except Exception:
+        # Fallback to plain unix URL (works on many setups)
+        return docker_sdk.DockerClient(base_url=f"unix://{docker_sock}")
 
 
 def query_gpu_stats(cli: docker_sdk.DockerClient) -> List[Dict[str, Any]]:
