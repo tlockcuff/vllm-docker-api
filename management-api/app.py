@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.responses import JSONResponse
+from fastapi.openapi.docs import get_swagger_ui_html
 from pydantic import BaseModel
 from huggingface_hub import HfApi, hf_hub_url
 import httpx
@@ -20,6 +22,7 @@ DEFAULT_PORT_RANGE = os.getenv("DEFAULT_PORT_RANGE", "21100-21999")
 VLLM_IMAGE = os.getenv("VLLM_IMAGE", "vllm/vllm-openai:latest")
 DOCKER_NETWORK = os.getenv("DOCKER_NETWORK", "vllm_net")
 MODELS_VOLUME_NAME = os.getenv("MODELS_VOLUME_NAME", "vllm_models")
+GATEWAY_INTERNAL_BASE_URL = os.getenv("GATEWAY_INTERNAL_BASE_URL", "http://gateway:8000")
 
 
 def auth(authorization: Optional[str] = Header(None)):
@@ -335,6 +338,25 @@ def list_download_jobs(_: Any = Depends(auth)):
         _job_status_snapshot(job_id)
         for job_id in list(DOWNLOAD_JOBS.keys())
     ]
+
+
+# ----------------------------------------
+# Proxied Gateway OpenAPI + Swagger UI
+# ----------------------------------------
+
+@app.get("/gateway/openapi.json", tags=["Gateway"], summary="Gateway OpenAPI spec (proxied)")
+def gateway_openapi(_: Any = Depends(auth)):
+    try:
+        r = httpx.get(f"{GATEWAY_INTERNAL_BASE_URL}/openapi.json", timeout=5)
+        r.raise_for_status()
+        return JSONResponse(r.json())
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch gateway openapi: {e}")
+
+
+@app.get("/gateway/docs", include_in_schema=False)
+def gateway_docs():
+    return get_swagger_ui_html(openapi_url="/gateway/openapi.json", title="Gateway API Docs")
 
 
 def docker_client():
