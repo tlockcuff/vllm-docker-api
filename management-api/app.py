@@ -15,7 +15,6 @@ from huggingface_hub import HfApi, hf_hub_url
 import httpx
 import docker as docker_sdk
 import requests_unixsocket
-import requests
 
 
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "changeme")
@@ -361,17 +360,9 @@ def gateway_docs():
 
 
 def docker_client():
-    # Robust unix-socket client that mounts http+docker adapter explicitly
+    # Use unix socket directly; compatible with docker-py 6.1.x
     docker_sock = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
-    try:
-        from docker.transport.unixconn import UnixHTTPAdapter  # type: ignore
-        session = requests.Session()
-        session.mount("http+docker://", UnixHTTPAdapter(docker_sock))
-        api = docker_sdk.APIClient(base_url="http+docker://localhost", version="auto", timeout=60, session=session)
-        return docker_sdk.DockerClient(api_client=api)
-    except Exception:
-        # Fallback to plain unix URL (works on many setups)
-        return docker_sdk.DockerClient(base_url=f"unix://{docker_sock}")
+    return docker_sdk.DockerClient(base_url=f"unix://{docker_sock}")
 
 
 def query_gpu_stats(cli: docker_sdk.DockerClient) -> List[Dict[str, Any]]:
