@@ -374,20 +374,33 @@ def query_gpu_stats(cli: docker_sdk.DockerClient) -> List[Dict[str, Any]]:
     cmd = ["bash", "-lc", "nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free --format=csv,noheader,nounits"]
     try:
         device_request = docker_sdk.types.DeviceRequest(count=-1, capabilities=[["gpu"]])
-        c = cli.containers.run(image, command=cmd, detach=True, remove=True, device_requests=[device_request])
-        logs = c.logs(stream=False, stdout=True, stderr=False).decode("utf-8", errors="ignore")
+        # Run synchronously to avoid race with container removal and reliably capture output
+        logs_bytes = cli.containers.run(
+            image,
+            command=cmd,
+            detach=False,
+            remove=True,
+            device_requests=[device_request],
+            stderr=True,
+            stdout=True,
+        )
+        logs = logs_bytes.decode("utf-8", errors="ignore") if isinstance(logs_bytes, (bytes, bytearray)) else str(logs_bytes)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to query GPUs: {e}")
     stats: List[Dict[str, Any]] = []
     for line in logs.strip().splitlines():
         parts = [p.strip() for p in line.split(",")]
         if len(parts) >= 4:
-            idx = int(parts[0])
-            name = parts[1]
-            total = float(parts[2])
-            used = float(parts[3])
-            free = float(parts[4]) if len(parts) > 4 else max(0.0, total - used)
-            stats.append({"index": idx, "name": name, "total_gb": total/1024.0, "used_mb": used, "free_gb": free/1024.0})
+            try:
+                idx = int(parts[0])
+                name = parts[1]
+                total = float(parts[2])
+                used = float(parts[3])
+                free = float(parts[4]) if len(parts) > 4 else max(0.0, total - used)
+                stats.append({"index": idx, "name": name, "total_gb": total/1024.0, "used_mb": used, "free_gb": free/1024.0})
+            except Exception:
+                # Skip malformed lines (e.g., when driver/toolkit is missing and output is empty/noisy)
+                continue
     return sorted(stats, key=lambda s: s["free_gb"], reverse=True)
 
 
@@ -395,6 +408,9 @@ def choose_gpu_allocation(cli: docker_sdk.DockerClient, req: InstanceRequest) ->
     # Honor explicit request if both provided
     if req.gpu is not None and req.tensor_parallel:
         return [i for i in range(req.gpu, req.gpu + req.tensor_parallel)]
+    # Honor single explicit GPU when tensor_parallel not specified
+    if req.gpu is not None:
+        return [req.gpu]
     stats = query_gpu_stats(cli)
     if not stats:
         raise HTTPException(status_code=503, detail="No GPUs available")
@@ -414,7 +430,6 @@ def to_worker_command(req: InstanceRequest, port: int) -> List[str]:
         "--model", req.model,
         "--dtype", req.dtype,
         "--gpu-memory-utilization", str(req.gpu_mem_util),
-        "--tensor-parallel-size", str(req.tensor_parallel or 1),
     ]
     if req.max_model_len:
         cmd += ["--max-model-len", str(req.max_model_len)]
@@ -455,20 +470,27 @@ def create_instance(req: InstanceRequest, _: Any = Depends(auth)):
     cmd += ["--tensor-parallel-size", str(tp_size)]
 
     # Create container without publishing port on host; internal network only
-    container = cli.containers.run(
-        VLLM_IMAGE,
-        name=container_name,
-        command=cmd,
-        detach=True,
-        network=DOCKER_NETWORK,
-        device_requests=[device_request],
-        environment=env,
-        volumes={
-            # mount the named volume from compose
-            MODELS_VOLUME_NAME: {"bind": "/models", "mode": "rw"},
-        },
-        labels=labels,
-    )
+    try:
+        container = cli.containers.run(
+            VLLM_IMAGE,
+            name=container_name,
+            command=cmd,
+            detach=True,
+            network=DOCKER_NETWORK,
+            device_requests=[device_request],
+            environment=env,
+            volumes={
+                # mount the named volume from compose
+                MODELS_VOLUME_NAME: {"bind": "/models", "mode": "rw"},
+            },
+            labels=labels,
+        )
+    except docker_sdk.errors.APIError as e:
+        # Surface Docker daemon error back to client
+        detail = getattr(e, 'explanation', str(e))
+        raise HTTPException(status_code=500, detail=f"Docker failed to start vLLM: {detail}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start vLLM container: {e}")
 
     return {"id": container.id, "name": req.name, "port": port, "gpus": device_ids, "tp": tp_size}
 
