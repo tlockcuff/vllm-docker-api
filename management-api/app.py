@@ -384,6 +384,8 @@ class UnixSocketHTTP:
             hdrs = headers.copy() if headers else {}
             if "Host" not in hdrs:
                 hdrs["Host"] = "docker"
+            if "Connection" not in hdrs:
+                hdrs["Connection"] = "close"
             for k, v in hdrs.items():
                 conn.putheader(k, v)
             conn.endheaders()
@@ -401,10 +403,13 @@ class UnixSocketHTTP:
     def request_json(self, method: str, path: str, json_body: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> Dict[str, Any]:
         import json as _json
         body_bytes = None
-        headers = {"Content-Type": "application/json"}
+        headers: Dict[str, str] = {"Accept": "application/json"}
         if json_body is not None:
             body_bytes = _json.dumps(json_body).encode("utf-8")
+            headers["Content-Type"] = "application/json"
             headers["Content-Length"] = str(len(body_bytes))
+        elif method in ("POST", "PUT", "PATCH"):
+            headers["Content-Length"] = "0"
         resp = self.request(method, path, headers=headers, body=body_bytes)
         data = resp.read()
         if resp.status >= 400:
@@ -425,7 +430,13 @@ class DockerEngineClient:
         self.http = UnixSocketHTTP(docker_sock)
 
     def version(self) -> Dict[str, Any]:
-        return self.http.request_json("GET", "/version")
+        # Try unversioned endpoint first, then fall back to a common API version
+        try:
+            return self.http.request_json("GET", "/version")
+        except HTTPException as e:
+            if getattr(e, "status_code", None) == 400:
+                return self.http.request_json("GET", "/v1.41/version")
+            raise
 
     def containers_create(self, config: Dict[str, Any]) -> str:
         resp = self.http.request_json("POST", "/containers/create", json_body=config)
@@ -516,7 +527,7 @@ class DockerEngineClient:
         return cid
 
 
-def docker_client() -> DockerEngineClient:
+def Update() -> DockerEngineClient:
     docker_sock = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
     try:
         client = DockerEngineClient(docker_sock=docker_sock)
@@ -602,7 +613,7 @@ def to_worker_command(req: InstanceRequest, port: int) -> List[str]:
 @app.post("/instances", tags=["Instances"], summary="Start a vLLM worker")
 def create_instance(req: InstanceRequest, _: Any = Depends(auth)):
     port = req.port or allocate_port()
-    cli = docker_client()
+    cli = Update()
 
     # Sanitize name for Docker container naming rules
     safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", req.name).strip("-") or "instance"
@@ -653,7 +664,7 @@ def create_instance(req: InstanceRequest, _: Any = Depends(auth)):
 
 @app.get("/instances", tags=["Instances"], summary="List vLLM workers with health")
 def list_instances(_: Any = Depends(auth)):
-    cli = docker_client()
+    cli = Update()
     containers = cli.containers_list(all_containers=True, filters={"label": ["managed-by=management-api"]})
     out: List[Dict[str, Any]] = []
     for c in containers:
@@ -683,7 +694,7 @@ def list_instances(_: Any = Depends(auth)):
 
 @app.get("/instances/{container_id}", tags=["Instances"], summary="Get worker details")
 def get_instance(container_id: str, _: Any = Depends(auth)):
-    cli = docker_client()
+    cli = Update()
     c = cli.containers_inspect(container_id)
     return {
         "id": c.get("Id"),
