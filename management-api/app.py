@@ -360,19 +360,13 @@ def gateway_docs():
 
 
 def docker_client():
-    # Build API client without auto version probe, mount http+docker adapter
+    # Use plain unix socket API client (no http+docker scheme)
     docker_sock = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
-    try:
-        from docker.transport.unixconn import UnixHTTPAdapter  # type: ignore
-        api = docker_sdk.APIClient(base_url="http+docker://localhost", version="1.43", timeout=60)
-        api._session.mount("http+docker://", UnixHTTPAdapter(docker_sock))
-        return docker_sdk.DockerClient(api_client=api)
-    except Exception:
-        # Fallback to plain unix URL via from_env
-        os.environ["DOCKER_HOST"] = f"unix://{docker_sock}"
-        os.environ.pop("DOCKER_TLS_VERIFY", None)
-        os.environ.pop("DOCKER_CERT_PATH", None)
-        return docker_sdk.from_env()
+    os.environ.pop("DOCKER_HOST", None)
+    os.environ.pop("DOCKER_TLS_VERIFY", None)
+    os.environ.pop("DOCKER_CERT_PATH", None)
+    api = docker_sdk.APIClient(base_url=f"unix://{docker_sock}", version="auto", timeout=60)
+    return docker_sdk.DockerClient(api_client=api)
 
 
 def query_gpu_stats(cli: docker_sdk.DockerClient) -> List[Dict[str, Any]]:
