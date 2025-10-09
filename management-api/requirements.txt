@@ -7,4 +7,5 @@ pydantic==2.9.2
 sqlmodel==0.0.21
 requests==2.32.3
 requests-unixsocket==0.3.0
+urllib3<2.0.0
 

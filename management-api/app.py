@@ -360,7 +360,9 @@ def gateway_docs():
 
 
 def docker_client():
-    # Use unix socket directly; compatible with docker-py 6.1.x
+    # docker-py handles unix sockets via base_url='unix://...'
+    # But ensure DOCKER_HOST does not override with http+docker
+    os.environ.pop("DOCKER_HOST", None)
     docker_sock = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
     return docker_sdk.DockerClient(base_url=f"unix://{docker_sock}")
 
