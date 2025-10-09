@@ -365,15 +365,12 @@ def docker_client():
     os.environ.pop("DOCKER_HOST", None)
     os.environ.pop("DOCKER_TLS_VERIFY", None)
     os.environ.pop("DOCKER_CERT_PATH", None)
-    # Ensure requests is patched to understand http+docker/unix schemes across urllib3 versions
-    try:
-        requests_unixsocket.monkeypatch()
-    except Exception:
-        pass
     # Helpful error if the Docker socket isn't mounted into the container
     if not os.path.exists(docker_sock):
         raise HTTPException(status_code=500, detail=f"Docker socket not found at {docker_sock}. Mount it into the management container (e.g., -v /var/run/docker.sock:/var/run/docker.sock)")
-    api = docker_sdk.APIClient(base_url=f"unix://{docker_sock}", version="auto", timeout=60)
+    # Normalize to a valid unix scheme URL (unix://var/run/docker.sock)
+    normalized = f"unix://{docker_sock.lstrip('/')}"
+    api = docker_sdk.APIClient(base_url=normalized, version="auto", timeout=60)
     return docker_sdk.DockerClient(api_client=api)
 
 
@@ -451,7 +448,9 @@ def create_instance(req: InstanceRequest, _: Any = Depends(auth)):
     port = req.port or allocate_port()
     cli = docker_client()
 
-    container_name = f"vllm-{req.name}"
+    # Sanitize name for Docker container naming rules
+    safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", req.name).strip("-") or "instance"
+    container_name = f"vllm-{safe_name}"
     labels = {
         "managed-by": "management-api",
         "app": "vllm",
