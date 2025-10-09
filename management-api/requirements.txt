@@ -1,0 +1,9 @@
+fastapi==0.114.2
+uvicorn[standard]==0.30.6
+docker==7.0.0
+huggingface_hub==0.24.6
+httpx==0.27.2
+pydantic==2.9.2
+sqlmodel==0.0.21
+requests==2.32.3
+

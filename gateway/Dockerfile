@@ -13,8 +13,6 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY app.py /app/app.py
 
-ENV HF_HOME=/models
-
-EXPOSE 8081
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8081"]
+EXPOSE 8000
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 

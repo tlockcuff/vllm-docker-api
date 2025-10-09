@@ -1,22 +1,39 @@
+version: "3.9"
 services:
   management-api:
     build: ./management-api
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./models:/models
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - HF_TOKEN=${HF_TOKEN}
-    restart: unless-stopped
-    # Enable GPU access for the management API if needed
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - DEFAULT_PORT_RANGE=21100-21999
+      - VLLM_IMAGE=vllm/vllm-openai:latest
+      - DOCKER_NETWORK=vllm_net
+      - MODELS_VOLUME_NAME=vllm_models
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - models:/models
+      - data:/data
+    networks: [llama_net]
+    ports:
+      - "8081:8081"
+
+  gateway:
+    build: ./gateway
+    environment:
+      - GATEWAY_API_KEY=${GATEWAY_API_KEY}
+      - ADMIN_BASE_URL=http://management-api:8081
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+    depends_on: [management-api]
+    networks: [llama_net]
+    ports:
+      - "8000:8000"
 
 volumes:
   models:
+    name: vllm_models
+  data:
+    name: vllm_data
+
+networks:
+  llama_net:
+    name: vllm_net
+    driver: bridge
