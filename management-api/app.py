@@ -1,12 +1,18 @@
 import os
 import re
 import socket
+import asyncio
+import time
+from fnmatch import fnmatch
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, hf_hub_url
+import httpx
 import docker as docker_sdk
+import requests_unixsocket
 
 
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "changeme")
@@ -103,7 +109,7 @@ def models_download(req: DownloadRequest, _: Any = Depends(auth)):
     dest = os.environ.get("HF_HOME", "/models")
     patterns = req.patterns or ["*"]
     for pattern in patterns:
-        api.snapshot_download(repo_id=req.repo_id, revision=req.revision, local_dir=dest, allow_patterns=pattern, local_dir_use_symlinks=False)
+        api.snapshot_download(repo_id=req.repo_id, revision=req.revision, local_dir=dest, allow_patterns=pattern)
     return {"status": "ok", "cached_in": dest}
 
 
@@ -118,8 +124,190 @@ def models_local(_: Any = Depends(auth)):
     return sorted(out)
 
 
+# -------------------------------
+# Download jobs with progress
+# -------------------------------
+
+class DownloadJobStart(BaseModel):
+    repo_id: str
+    revision: Optional[str] = None
+    patterns: Optional[List[str]] = None
+
+
+class DownloadJobStatus(BaseModel):
+    job_id: str
+    status: str
+    repo_id: str
+    revision: Optional[str]
+    files_total: int
+    files_done: int
+    total_bytes: int
+    downloaded_bytes: int
+    rate_bps: float
+    eta_seconds: Optional[float]
+    current_file: Optional[str]
+    current_file_bytes: int
+    current_file_size: int
+    error: Optional[str] = None
+
+
+DOWNLOAD_JOBS: Dict[str, Dict[str, Any]] = {}
+
+
+def _job_status_snapshot(job_id: str) -> DownloadJobStatus:
+    s = DOWNLOAD_JOBS.get(job_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Job not found")
+    remaining = max(0, s["total_bytes"] - s["downloaded_bytes"]) if s["total_bytes"] else 0
+    eta = (remaining / s["rate_bps"]) if s["rate_bps"] > 0 else None
+    return DownloadJobStatus(
+        job_id=job_id,
+        status=s["status"],
+        repo_id=s["repo_id"],
+        revision=s.get("revision"),
+        files_total=s["files_total"],
+        files_done=s["files_done"],
+        total_bytes=s["total_bytes"],
+        downloaded_bytes=s["downloaded_bytes"],
+        rate_bps=s["rate_bps"],
+        eta_seconds=eta,
+        current_file=s.get("current_file"),
+        current_file_bytes=s.get("current_file_bytes", 0),
+        current_file_size=s.get("current_file_size", 0),
+        error=s.get("error"),
+    )
+
+
+async def _run_download_job(job_id: str):
+    s = DOWNLOAD_JOBS[job_id]
+    repo_id = s["repo_id"]
+    revision = s.get("revision")
+    patterns = s.get("patterns") or ["*"]
+    base_dir = Path(os.environ.get("HF_HOME", "/models")).resolve()
+    dest_root = base_dir / repo_id
+    dest_root.mkdir(parents=True, exist_ok=True)
+
+    # list files and sizes
+    api = HfApi()
+    try:
+        info = api.repo_info(repo_id=repo_id, revision=revision, files_metadata=True)
+    except Exception as e:
+        s.update({"status": "error", "error": str(e)})
+        return
+    files = []
+    total_bytes = 0
+    for f in info.siblings:
+        path = f.rfilename
+        if any(fnmatch(path, pat) for pat in patterns):
+            size = int(getattr(f, "size", 0) or 0)
+            files.append({"path": path, "size": size})
+            total_bytes += size
+    s.update({"files_total": len(files), "total_bytes": total_bytes})
+
+    headers = {}
+    hf_token = os.getenv("HF_TOKEN")
+    if hf_token:
+        headers["Authorization"] = f"Bearer {hf_token}"
+
+    start_time = time.time()
+    downloaded_bytes = 0
+    files_done = 0
+    s["status"] = "running"
+
+    async with httpx.AsyncClient(follow_redirects=True, timeout=None) as client:
+        for f in files:
+            if s.get("cancel"):
+                s["status"] = "cancelled"
+                return
+            rel_path = f["path"]
+            file_size = int(f.get("size") or 0)
+            url = hf_hub_url(repo_id=repo_id, filename=rel_path, revision=revision)
+            dest_path = (dest_root / rel_path).resolve()
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+            s.update({
+                "current_file": rel_path,
+                "current_file_size": file_size,
+                "current_file_bytes": 0,
+            })
+            # Skip if already exists and matches size
+            if dest_path.exists() and file_size > 0 and dest_path.stat().st_size == file_size:
+                downloaded_bytes += file_size
+                files_done += 1
+                s.update({
+                    "downloaded_bytes": downloaded_bytes,
+                    "files_done": files_done,
+                    "current_file_bytes": file_size,
+                })
+                elapsed = max(0.001, time.time() - start_time)
+                s["rate_bps"] = downloaded_bytes / elapsed
+                continue
+
+            try:
+                async with client.stream("GET", url, headers=headers) as resp:
+                    resp.raise_for_status()
+                    with dest_path.open("wb") as out:
+                        async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
+                            if s.get("cancel"):
+                                s["status"] = "cancelled"
+                                return
+                            if chunk:
+                                out.write(chunk)
+                                s["current_file_bytes"] += len(chunk)
+                                downloaded_bytes += len(chunk)
+                                s["downloaded_bytes"] = downloaded_bytes
+                                elapsed = max(0.001, time.time() - start_time)
+                                s["rate_bps"] = downloaded_bytes / elapsed
+                files_done += 1
+                s["files_done"] = files_done
+            except Exception as e:
+                s.update({"status": "error", "error": str(e)})
+                return
+
+    s["status"] = "completed"
+
+
+@app.post("/models/downloads/start", tags=["Models"], summary="Start async model download")
+async def start_download_job(req: DownloadJobStart, _: Any = Depends(auth)):
+    job_id = os.urandom(8).hex()
+    DOWNLOAD_JOBS[job_id] = {
+        "status": "queued",
+        "repo_id": req.repo_id,
+        "revision": req.revision,
+        "patterns": req.patterns or ["*"],
+        "files_total": 0,
+        "files_done": 0,
+        "total_bytes": 0,
+        "downloaded_bytes": 0,
+        "rate_bps": 0.0,
+        "current_file": None,
+        "current_file_bytes": 0,
+        "current_file_size": 0,
+        "error": None,
+        "cancel": False,
+    }
+    asyncio.create_task(_run_download_job(job_id))
+    return {"job_id": job_id}
+
+
+@app.get("/models/downloads/{job_id}", response_model=DownloadJobStatus, tags=["Models"], summary="Get download job status")
+def get_download_job(job_id: str, _: Any = Depends(auth)):
+    return _job_status_snapshot(job_id)
+
+
+@app.post("/models/downloads/{job_id}/cancel", tags=["Models"], summary="Cancel a running download job")
+def cancel_download_job(job_id: str, _: Any = Depends(auth)):
+    s = DOWNLOAD_JOBS.get(job_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Job not found")
+    s["cancel"] = True
+    return {"status": "cancelling"}
+
+
 def docker_client():
-    return docker_sdk.from_env()
+    # Prefer unix socket to avoid http+docker URL issues behind proxies
+    base_url = os.getenv("DOCKER_HOST", "unix:///var/run/docker.sock")
+    return docker_sdk.DockerClient(base_url=base_url)
 
 
 def query_gpu_stats(cli: docker_sdk.DockerClient) -> List[Dict[str, Any]]:
