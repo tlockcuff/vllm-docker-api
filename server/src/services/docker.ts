@@ -133,7 +133,11 @@ export async function getHostPort(containerName: string): Promise<number> {
   return VLLM_PORT;
 }
 
-export async function ensureVllmForModel(model: string, tensorParallelSize?: number, dtype?: string): Promise<{ name: string; port: number }> {
+export async function ensureVllmForModel(
+  model: string,
+  options?: { tensorParallelSize?: number; dtype?: string; enableSleepMode?: boolean; cpuOffloadGb?: number }
+): Promise<{ name: string; port: number }> {
+  const { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb } = options || {};
   const name = getContainerNameForModel(model);
   const exists = await containerExists(name);
   if (!exists) {
@@ -151,32 +155,17 @@ export async function ensureVllmForModel(model: string, tensorParallelSize?: num
       envArgs.push("-e", "VLLM_DEVICE=cpu");
     }
 
-    const deviceCliArgs: string[] = [];
-    if (process.env.VLLM_DEVICE) {
-      deviceCliArgs.push("--device", process.env.VLLM_DEVICE);
-    } else if (!VLLM_USE_GPU) {
-      deviceCliArgs.push("--device", "cpu");
+    const vllmArgs: string[] = [];
+    vllmArgs.push("--device", "gpu");
+    vllmArgs.push("--dtype", dtype ?? "float16");
+    if (enableSleepMode) {
+      vllmArgs.push("--enable-sleep-mode");
     }
-
-    const dtypeCliArgs: string[] = [];
-    if (dtype) {
-      dtypeCliArgs.push("--dtype", dtype);
-    } else if (VLLM_USE_GPU) {
-      dtypeCliArgs.push("--dtype", "float16");
+    if (cpuOffloadGb) {
+      vllmArgs.push("--cpu-offload-gb", String(cpuOffloadGb));
     }
-
-    // Tensor parallel size resolution: request -> env -> none
-    let tpSize: number | undefined = undefined;
-    if (typeof tensorParallelSize === "number" && Number.isInteger(tensorParallelSize) && tensorParallelSize > 1) {
-      tpSize = tensorParallelSize;
-    } else if (process.env.VLLM_TP_SIZE) {
-      const n = Number(process.env.VLLM_TP_SIZE);
-      if (Number.isInteger(n) && n > 1) tpSize = n;
-    }
-
-    const tensorCliArgs: string[] = [];
-    if (VLLM_USE_GPU && tpSize) {
-      tensorCliArgs.push("--tensor-parallel-size", String(tpSize));
+    if (VLLM_USE_GPU && tensorParallelSize) {
+      vllmArgs.push("--tensor-parallel-size", String(tensorParallelSize));
     }
 
     const args = [
@@ -192,9 +181,7 @@ export async function ensureVllmForModel(model: string, tensorParallelSize?: num
       ...envArgs,
       ...(VLLM_USE_GPU ? ["--gpus", "all"] : []),
       VLLM_IMAGE,
-      ...deviceCliArgs,
-      ...dtypeCliArgs,
-      ...tensorCliArgs,
+      ...vllmArgs,
       "--model",
       model,
     ];
@@ -229,9 +216,9 @@ export function ensureLogStreaming(containerName: string) {
         const trimmed = line.trim();
         if (trimmed.length === 0) continue;
         if (stream === "stdout") {
-          logger.info("vllm_container_log", { container: containerName, stream, line: trimmed });
+          logger.info("vllm_container_log", { l: trimmed });
         } else {
-          logger.warn("vllm_container_log", { container: containerName, stream, line: trimmed });
+          logger.warn("vllm_container_log", { l: trimmed });
         }
       }
     };
@@ -241,14 +228,14 @@ export function ensureLogStreaming(containerName: string) {
     child.stdout.on("data", (chunk) => handleChunk(chunk, "stdout"));
     child.stderr.on("data", (chunk) => handleChunk(chunk, "stderr"));
     child.on("error", (err) => {
-      logger.error("docker_logs_stream_error", { container: containerName, errorMessage: (err as Error).message });
+      logger.error("docker_logs_stream_error", { errorMessage: (err as Error).message });
     });
     child.on("close", (code, signal) => {
-      logger.info("docker_logs_stream_closed", { container: containerName, code, signal });
+      logger.info("docker_logs_stream_closed", { code, signal });
       logStreams.delete(containerName);
     });
   } catch (err) {
-    logger.error("docker_logs_spawn_failed", { container: containerName, errorMessage: err instanceof Error ? err.message : String(err) });
+    logger.error("docker_logs_spawn_failed", { errorMessage: err instanceof Error ? err.message : String(err) });
   }
 }
 

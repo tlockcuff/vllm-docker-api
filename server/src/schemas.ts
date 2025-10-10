@@ -10,7 +10,9 @@ export const StatusResponseSchema = z.object({
 
 export const StartRequestSchema = z.object({
   model: z.string().optional().describe('Model to load (optional, uses default if not provided)'),
-  dtype: z.enum(['float16', 'float32', 'bfloat16']).optional().describe('Data type to use for the model'),
+  dtype: z.enum(['auto', 'float16', 'bfloat16', 'float32']).optional().describe('Data type to use for the model'),
+  enableSleepMode: z.boolean().optional().describe('Whether to enable sleep mode'),
+  cpuOffloadGb: z.number().int().min(0).optional().describe('Number of GB of CPU memory to offload to'),
   tensorParallelSize: z.number().int().min(1).optional().describe('Number of GPUs to use for tensor parallelism'),
 });
 
