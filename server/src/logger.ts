@@ -7,11 +7,10 @@ interface LogFields {
 function format(level: LogLevel, message: string, fields?: LogFields) {
   const base = {
     level,
-    time: new Date().toISOString(),
-    msg: message,
+    message: message,
   } as Record<string, unknown>;
   const payload = fields ? { ...base, ...fields } : base;
-  return message
+  return JSON.stringify(payload);
 }
 
 export const logger = {
