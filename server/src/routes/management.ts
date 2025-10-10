@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { VLLM_IMAGE, VLLM_PORT } from "../config.js";
+import { DEFAULT_MODEL, VLLM_IMAGE, VLLM_PORT } from "../config.js";
 import { logger } from "../logger.js";
 import { registry } from "../openapi.js";
 import {
@@ -49,8 +49,9 @@ export function mountManagementRoutes(app: Express) {
   app.post("/api/start", async (req: Request, res: Response) => {
     try {
       const requestData = StartRequestSchema.parse(req.body);
-      const model = requestData.model && requestData.model.length > 0 ? requestData.model : "";
-      await ensureVllmForModel(model);
+      const model = requestData.model && requestData.model.length > 0 ? requestData.model : DEFAULT_MODEL;
+      const { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb, quantization, kvCacheDtype, maxModelLen } = requestData as any;
+      await ensureVllmForModel(model, { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb, quantization, kvCacheDtype, maxModelLen });
       const response = StartResponseSchema.parse({ ok: true, model });
       res.json(response);
     } catch (e) {
