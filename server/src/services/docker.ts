@@ -80,7 +80,7 @@ export async function ensureVllmForModel(
 
     const vllmArgs: string[] = [];
     // https://docs.vllm.ai/en/v0.4.3/models/engine_args.html
-    // vllmArgs.push("--device", "gpu");
+    vllmArgs.push("--device", "cuda");
     // vllmArgs.push("--dtype", "auto");
     // vllmArgs.push("--kv-cache-dtype", "auto");
     vllmArgs.push("--gpu-memory-utilization", "0.95");
