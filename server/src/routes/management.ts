@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import { registry } from '../openapi.js';
 import { DEFAULT_MODEL, PORT, VLLM_CONTAINER, VLLM_IMAGE, VLLM_PORT } from '../config.js';
-import { ensureVllm, containerExists, containerRunning, runDocker, ensureVllmForModel, getContainerNameForModel, getHostPort } from '../services/docker.js';
+import { ensureVllm, containerExists, containerRunning, runDocker, ensureVllmForModel, getContainerNameForModel, getHostPort, stopLogStreaming } from '../services/docker.js';
 import { HealthResponseSchema, RemoveResponseSchema, StartRequestSchema, StartResponseSchema, StatusResponseSchema, StopResponseSchema } from '../schemas.js';
 import { logger } from '../logger.js';
 
@@ -71,6 +71,7 @@ export function mountManagementRoutes(app: Express) {
       }
       const running = await containerRunning(VLLM_CONTAINER);
       if (running) await runDocker(['stop', VLLM_CONTAINER]);
+      stopLogStreaming(VLLM_CONTAINER);
       await runDocker(['rm', VLLM_CONTAINER]);
       const response = RemoveResponseSchema.parse({ ok: true, removed: true });
       res.json(response);
@@ -108,6 +109,7 @@ export function mountManagementRoutes(app: Express) {
       }
       const running = await containerRunning(name);
       if (running) await runDocker(['stop', name]);
+      stopLogStreaming(name);
       await runDocker(['rm', name]);
       const response = RemoveResponseSchema.parse({ ok: true, removed: true });
       res.json(response);

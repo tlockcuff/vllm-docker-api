@@ -1,6 +1,8 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { DEFAULT_MODEL, VLLM_CONTAINER, VLLM_IMAGE, VLLM_PORT, VLLM_USE_GPU } from '../config.js';
+import { logger } from '../logger.js';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 
 const execFileAsync = promisify(execFile);
 
@@ -28,16 +30,21 @@ export async function ensureVllm(model: string = DEFAULT_MODEL) {
     const args = [
       'run', '-d', '--restart', 'unless-stopped', '--name', VLLM_CONTAINER,
       '-p', `${VLLM_PORT}:8000`,
+      ...(process.env.VLLM_LOGGING_LEVEL ? ['-e', `VLLM_LOGGING_LEVEL=${process.env.VLLM_LOGGING_LEVEL}`] : []),
       ...(VLLM_USE_GPU ? ['--gpus', 'all'] : []),
       VLLM_IMAGE,
       '--model', model,
     ];
     await runDocker(args);
+    ensureLogStreaming(VLLM_CONTAINER);
     return;
   }
   const running = await containerRunning(VLLM_CONTAINER);
   if (!running) {
     await runDocker(['start', VLLM_CONTAINER]);
+    ensureLogStreaming(VLLM_CONTAINER);
+  } else {
+    ensureLogStreaming(VLLM_CONTAINER);
   }
 }
 
@@ -89,18 +96,72 @@ export async function ensureVllmForModel(model: string): Promise<{ name: string;
       'run', '-d', '--restart', 'unless-stopped', '--name', name,
       // Let Docker assign a random available host port; we'll discover it via inspect
       '-p', '0:8000',
+      ...(process.env.VLLM_LOGGING_LEVEL ? ['-e', `VLLM_LOGGING_LEVEL=${process.env.VLLM_LOGGING_LEVEL}`] : []),
       ...(VLLM_USE_GPU ? ['--gpus', 'all'] : []),
       VLLM_IMAGE,
       '--model', model,
     ];
     await runDocker(args);
+    ensureLogStreaming(name);
   } else {
     const running = await containerRunning(name);
     if (!running) {
       await runDocker(['start', name]);
+      ensureLogStreaming(name);
+    } else {
+      ensureLogStreaming(name);
     }
   }
   const port = await getHostPort(name);
   return { name, port };
+}
+
+// --- Log streaming management ---
+const logStreams = new Map<string, ChildProcessWithoutNullStreams>();
+
+export function ensureLogStreaming(containerName: string) {
+  if (logStreams.has(containerName)) return;
+  try {
+    const child = spawn('docker', ['logs', '-f', containerName], { env: process.env });
+    logStreams.set(containerName, child);
+
+    const handleChunk = (chunk: Buffer | string, stream: 'stdout' | 'stderr') => {
+      const text = chunk.toString('utf8');
+      const lines = text.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length === 0) continue;
+        if (stream === 'stdout') {
+          logger.info('vllm_container_log', { container: containerName, stream, line: trimmed });
+        } else {
+          logger.warn('vllm_container_log', { container: containerName, stream, line: trimmed });
+        }
+      }
+    };
+
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => handleChunk(chunk, 'stdout'));
+    child.stderr.on('data', (chunk) => handleChunk(chunk, 'stderr'));
+    child.on('error', (err) => {
+      logger.error('docker_logs_stream_error', { container: containerName, errorMessage: (err as Error).message });
+    });
+    child.on('close', (code, signal) => {
+      logger.info('docker_logs_stream_closed', { container: containerName, code, signal });
+      logStreams.delete(containerName);
+    });
+  } catch (err) {
+    logger.error('docker_logs_spawn_failed', { container: containerName, errorMessage: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+export function stopLogStreaming(containerName: string) {
+  const child = logStreams.get(containerName);
+  if (child) {
+    try {
+      child.kill('SIGTERM');
+    } catch {}
+    logStreams.delete(containerName);
+  }
 }
 
