@@ -13,7 +13,8 @@ services:
       - VLLM_MODEL=${VLLM_MODEL:-mistralai/Mistral-7B-Instruct-v0.3}
       - VLLM_PORT=${VLLM_PORT:-8000}
       - VLLM_CONTAINER=${VLLM_CONTAINER:-vllm-openai}
-      - VLLM_USE_GPU=${VLLM_USE_GPU:-}
+      - VLLM_USE_GPU=${VLLM_USE_GPU:-1}
+      - VLLM_DEVICE=${VLLM_DEVICE:-cuda}
       - PORT=${PORT:-3000}
     deploy:
       resources:

@@ -96,6 +96,11 @@ export async function ensureVllmForModel(model: string, requestData?: z.infer<ty
     }
     console.log(`Starting vLLM container with args: ${vllmArgs.join(" ")}`);
 
+    const volumeArgs: string[] = [];
+    if (process.env.VLLM_MODELS_DIR) {
+      volumeArgs.push("-v", `${process.env.VLLM_MODELS_DIR}:/models-cache`);
+    }
+
     const args = [
       "run",
       "-d",
@@ -107,6 +112,7 @@ export async function ensureVllmForModel(model: string, requestData?: z.infer<ty
       "-p",
       "0:8000",
       ...envArgs,
+      ...volumeArgs,
       ...(VLLM_USE_GPU ? ["--gpus", "all"] : []),
       VLLM_IMAGE,
       ...vllmArgs,
