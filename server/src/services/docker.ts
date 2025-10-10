@@ -133,11 +133,7 @@ export async function getHostPort(containerName: string): Promise<number> {
   return VLLM_PORT;
 }
 
-export async function ensureVllmForModel(
-  model: string,
-  options?: { tensorParallelSize?: number; dtype?: string; enableSleepMode?: boolean; cpuOffloadGb?: number; quantization?: string; kvCacheDtype?: string; maxModelLen?: number }
-): Promise<{ name: string; port: number }> {
-  const { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb, quantization, kvCacheDtype, maxModelLen } = options || {};
+export async function ensureVllmForModel(model: string): Promise<{ name: string; port: number }> {
   const name = getContainerNameForModel(model);
   const exists = await containerExists(name);
   if (!exists) {
@@ -156,26 +152,14 @@ export async function ensureVllmForModel(
     }
 
     const vllmArgs: string[] = [];
+    // https://docs.vllm.ai/en/v0.4.3/models/engine_args.html
     vllmArgs.push("--device", "gpu");
-    vllmArgs.push("--dtype", dtype ?? "float16");
-    // if (quantization) {
-    //   vllmArgs.push("--quantization", String(quantization));
-    // }
-    // if (kvCacheDtype) {
-    //   vllmArgs.push("--kv-cache-dtype", String(kvCacheDtype));
-    // }
-    if (typeof maxModelLen === "number" && maxModelLen > 0) {
-      vllmArgs.push("--max-model-len", String(maxModelLen));
-    }
-    if (enableSleepMode) {
-      vllmArgs.push("--enable-sleep-mode");
-    }
-    if (cpuOffloadGb) {
-      vllmArgs.push("--cpu-offload-gb", String(cpuOffloadGb));
-    }
-    if (VLLM_USE_GPU && tensorParallelSize) {
-      vllmArgs.push("--tensor-parallel-size", String(tensorParallelSize));
-    }
+    vllmArgs.push("--dtype", "float16");
+    vllmArgs.push("--kv-cache-dtype", "auto");
+    vllmArgs.push("--gpu-memory-utilization", "0.95");
+    vllmArgs.push("--tensor-parallel-size", "2");
+    vllmArgs.push("--quantization", "fp8");
+    vllmArgs.push("--max-num-seqs", "128");
 
     const args = [
       "run",
