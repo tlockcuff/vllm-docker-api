@@ -158,12 +158,12 @@ export async function ensureVllmForModel(
     const vllmArgs: string[] = [];
     vllmArgs.push("--device", "gpu");
     vllmArgs.push("--dtype", dtype ?? "float16");
-    if (quantization) {
-      vllmArgs.push("--quantization", String(quantization));
-    }
-    if (kvCacheDtype) {
-      vllmArgs.push("--kv-cache-dtype", String(kvCacheDtype));
-    }
+    // if (quantization) {
+    //   vllmArgs.push("--quantization", String(quantization));
+    // }
+    // if (kvCacheDtype) {
+    //   vllmArgs.push("--kv-cache-dtype", String(kvCacheDtype));
+    // }
     if (typeof maxModelLen === "number" && maxModelLen > 0) {
       vllmArgs.push("--max-model-len", String(maxModelLen));
     }
