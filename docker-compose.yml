@@ -6,6 +6,7 @@ services:
     volumes:
       - ./models:/app/models
       - ./.cache:/root/.cache
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=production
       - VLLM_IMAGE=${VLLM_IMAGE:-vllm/vllm-openai:latest}

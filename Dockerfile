@@ -1,8 +1,8 @@
 # Use Node.js 18 as base image
 FROM node:18-alpine
 
-# Install Python and pip for huggingface-cli
-RUN apk add --no-cache python3 py3-pip
+# Install Python, pip, and Docker CLI
+RUN apk add --no-cache python3 py3-pip docker-cli
 
 # Install huggingface-cli with transfer acceleration
 RUN pip3 install --break-system-packages huggingface_hub[hf-transfer]
