@@ -113,9 +113,8 @@ export async function ensureVllmForModel(model: string, requestData?: z.infer<ty
       "0:8000",
       ...envArgs,
       ...volumeArgs,
-      // Attach to the same user-defined network as the API for direct container DNS
-      "--network",
-      "vllm-network",
+      // Attach to a user-defined network (if provided) for direct container DNS
+      ...(process.env.VLLM_DOCKER_NETWORK ? ["--network", process.env.VLLM_DOCKER_NETWORK] : []),
       ...(VLLM_USE_GPU ? ["--gpus", "all"] : []),
       VLLM_IMAGE,
       ...vllmArgs,

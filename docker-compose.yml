@@ -15,6 +15,7 @@ services:
       - VLLM_CONTAINER=${VLLM_CONTAINER:-vllm-openai}
       - VLLM_USE_GPU=${VLLM_USE_GPU:-1}
       - VLLM_DEVICE=${VLLM_DEVICE:-cuda}
+      - VLLM_DOCKER_NETWORK=${VLLM_DOCKER_NETWORK:-vllm-network}
       - PORT=${PORT:-3000}
     deploy:
       resources:
@@ -28,6 +29,7 @@ services:
 
 networks:
   vllm-network:
+    name: vllm-network
     driver: bridge
 
 volumes:
