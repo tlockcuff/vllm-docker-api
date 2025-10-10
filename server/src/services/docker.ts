@@ -71,21 +71,21 @@ export async function ensureVllmForModel(
     if (process.env.HUGGING_FACE_HUB_TOKEN) {
       envArgs.push("-e", `HUGGING_FACE_HUB_TOKEN=${process.env.HUGGING_FACE_HUB_TOKEN}`);
     }
-    if (process.env.VLLM_DEVICE) {
-      envArgs.push("-e", `VLLM_DEVICE=${process.env.VLLM_DEVICE}`);
-    } else if (!VLLM_USE_GPU) {
-      // Default to CPU when GPU is not explicitly requested/available
-      envArgs.push("-e", "VLLM_DEVICE=cpu");
-    }
+    // if (process.env.VLLM_DEVICE) {
+    //   envArgs.push("-e", `VLLM_DEVICE=${process.env.VLLM_DEVICE}`);
+    // } else if (!VLLM_USE_GPU) {
+    //   // Default to CPU when GPU is not explicitly requested/available
+    //   envArgs.push("-e", "VLLM_DEVICE=cpu");
+    // }
 
     const vllmArgs: string[] = [];
     // https://docs.vllm.ai/en/v0.4.3/models/engine_args.html
-    vllmArgs.push("--device", "gpu");
-    vllmArgs.push("--dtype", "auto");
+    // vllmArgs.push("--device", "gpu");
+    // vllmArgs.push("--dtype", "auto");
     // vllmArgs.push("--kv-cache-dtype", "auto");
     vllmArgs.push("--gpu-memory-utilization", "0.95");
     vllmArgs.push("--tensor-parallel-size", "2");
-    vllmArgs.push('--quantization', 'auto')
+    // vllmArgs.push('--quantization', 'auto')
     vllmArgs.push('--max-num-seqs', '128')
 
     const args = [
