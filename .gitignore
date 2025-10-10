@@ -3,3 +3,4 @@ models
 .DS_Store
 node_modules
 .cache
+server/dist

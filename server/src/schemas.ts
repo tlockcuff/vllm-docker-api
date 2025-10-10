@@ -12,7 +12,7 @@ import {
   SchedulerConfigSchema,
   StructuredOutputsConfigSchema,
   VllmConfigSchema,
-} from "./vllm-schema";
+} from "./vllm-schema.js";
 
 // API Schemas
 export const StatusResponseSchema = z.object({
