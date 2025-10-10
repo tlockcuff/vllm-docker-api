@@ -24,82 +24,6 @@ export async function containerRunning(name: string) {
   return output.split("\n").includes(name);
 }
 
-export async function ensureVllm(model: string = DEFAULT_MODEL) {
-  const exists = await containerExists(VLLM_CONTAINER);
-  if (!exists) {
-    const envArgs: string[] = [];
-    if (process.env.VLLM_LOGGING_LEVEL) {
-      envArgs.push("-e", `VLLM_LOGGING_LEVEL=${process.env.VLLM_LOGGING_LEVEL}`);
-    }
-    if (process.env.HUGGING_FACE_HUB_TOKEN) {
-      envArgs.push("-e", `HUGGING_FACE_HUB_TOKEN=${process.env.HUGGING_FACE_HUB_TOKEN}`);
-    }
-    if (process.env.VLLM_DEVICE) {
-      envArgs.push("-e", `VLLM_DEVICE=${process.env.VLLM_DEVICE}`);
-    } else if (!VLLM_USE_GPU) {
-      // Default to CPU when GPU is not explicitly requested/available
-      envArgs.push("-e", "VLLM_DEVICE=cpu");
-    }
-
-    const deviceCliArgs: string[] = [];
-    if (process.env.VLLM_DEVICE) {
-      deviceCliArgs.push("--device", process.env.VLLM_DEVICE);
-    } else if (!VLLM_USE_GPU) {
-      deviceCliArgs.push("--device", "cpu");
-    }
-
-    const dtypeCliArgs: string[] = [];
-    if (process.env.VLLM_DTYPE) {
-      dtypeCliArgs.push("--dtype", process.env.VLLM_DTYPE);
-    } else if (VLLM_USE_GPU) {
-      dtypeCliArgs.push("--dtype", "float16");
-    }
-
-    // Tensor parallel size via env fallback (for base container)
-    let envTpSize: number | undefined;
-    if (process.env.VLLM_TP_SIZE) {
-      const n = Number(process.env.VLLM_TP_SIZE);
-      if (Number.isInteger(n) && n > 1) envTpSize = n;
-    }
-
-    const tensorCliArgs: string[] = [];
-    if (VLLM_USE_GPU && envTpSize) {
-      tensorCliArgs.push("--tensor-parallel-size", String(envTpSize));
-    }
-
-    const args = [
-      "run",
-      "-d",
-      "--restart",
-      "unless-stopped",
-      "--name",
-      VLLM_CONTAINER,
-      "-p",
-      `${VLLM_PORT}:8000`,
-      ...envArgs,
-      ...(VLLM_USE_GPU ? ["--gpus", "all"] : []),
-      VLLM_IMAGE,
-      ...deviceCliArgs,
-      ...dtypeCliArgs,
-      ...tensorCliArgs,
-      "--model",
-      model,
-    ];
-    await runDocker(args);
-    ensureLogStreaming(VLLM_CONTAINER);
-    return;
-  }
-  const running = await containerRunning(VLLM_CONTAINER);
-  if (!running) {
-    await runDocker(["start", VLLM_CONTAINER]);
-    ensureLogStreaming(VLLM_CONTAINER);
-  } else {
-    ensureLogStreaming(VLLM_CONTAINER);
-  }
-}
-
-// Multi-model support helpers
-
 function slugifyModel(model: string): string {
   const lower = model.toLowerCase();
   const replaced = lower.replace(/[^a-z0-9]+/g, "-");
@@ -133,7 +57,10 @@ export async function getHostPort(containerName: string): Promise<number> {
   return VLLM_PORT;
 }
 
-export async function ensureVllmForModel(model: string): Promise<{ name: string; port: number }> {
+export async function ensureVllmForModel(
+  model: string,
+
+): Promise<{ name: string; port: number }> {
   const name = getContainerNameForModel(model);
   const exists = await containerExists(name);
   if (!exists) {
@@ -155,11 +82,11 @@ export async function ensureVllmForModel(model: string): Promise<{ name: string;
     // https://docs.vllm.ai/en/v0.4.3/models/engine_args.html
     vllmArgs.push("--device", "gpu");
     vllmArgs.push("--dtype", "float16");
-    vllmArgs.push("--kv-cache-dtype", "auto");
+    // vllmArgs.push("--kv-cache-dtype", "auto");
     vllmArgs.push("--gpu-memory-utilization", "0.95");
     vllmArgs.push("--tensor-parallel-size", "2");
-    vllmArgs.push("--quantization", "fp8");
-    vllmArgs.push("--max-num-seqs", "128");
+    vllmArgs.push('--quantization', 'fp8')
+    vllmArgs.push('--max-num-seqs', '128')
 
     const args = [
       "run",
