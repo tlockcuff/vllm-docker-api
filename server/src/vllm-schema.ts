@@ -8,42 +8,42 @@ const port = z.number().int().min(1).max(65535).or(z.string()); // CLI often use
 
 // ModelConfig
 export const ModelConfigSchema = z.object({
-  runner: z.enum(["auto", "draft", "generate", "pooling"]).default("auto"),
-  convert: z.enum(["auto", "classify", "embed", "none", "reward"]).default("auto"),
+  runner: z.enum(["auto", "draft", "generate", "pooling"]).default("auto").optional(),
+  convert: z.enum(["auto", "classify", "embed", "none", "reward"]).default("auto").optional(),
   task: z.enum(["auto", "classify", "draft", "embed", "embedding", "generate", "reward", "score", "transcription", "None"]).optional(),
   tokenizer: z.string().nullable().optional(),
-  tokenizerMode: z.enum(["auto", "custom", "mistral", "slow"]).default("auto"),
-  trustRemoteCode: boolFlag.default(false),
-  dtype: z.enum(["auto", "bfloat16", "float", "float16", "float32", "half"]).default("auto"),
+  tokenizerMode: z.enum(["auto", "custom", "mistral", "slow"]).default("auto").optional(),
+  trustRemoteCode: boolFlag.default(false).optional(),
+  dtype: z.enum(["auto", "bfloat16", "float", "float16", "float32", "half"]).default("auto").optional(),
   seed: z.number().int().nullable().optional(),
   hfConfigPath: z.string().nullable().optional(),
-  allowedLocalMediaPath: z.string().default(""),
+  allowedLocalMediaPath: z.string().default("").optional(),
   allowedMediaDomains: z.string().nullable().optional(),
   revision: z.string().nullable().optional(),
   codeRevision: z.string().nullable().optional(),
-  ropeScaling: jsonLike.default({}),
+  ropeScaling: jsonLike.default({}).optional(),
   ropeTheta: z.number().nullable().optional(),
   tokenizerRevision: z.string().nullable().optional(),
   maxModelLen: humanReadableInt.nullable().optional(),
   quantization: z.string().nullable().optional(),
-  enforceEager: boolFlag.default(false),
-  maxLogprobs: z.number().int().default(20),
-  logprobsMode: z.enum(["processed_logits", "processed_logprobs", "raw_logits", "raw_logprobs"]).default("raw_logprobs"),
-  disableSlidingWindow: boolFlag.default(false),
-  disableCascadeAttn: boolFlag.default(false),
-  skipTokenizerInit: boolFlag.default(false),
-  enablePromptEmbeds: boolFlag.default(false),
+  enforceEager: boolFlag.default(false).optional(),
+  maxLogprobs: z.number().int().default(20).optional(),
+  logprobsMode: z.enum(["processed_logits", "processed_logprobs", "raw_logits", "raw_logprobs"]).default("raw_logprobs").optional(),
+  disableSlidingWindow: boolFlag.default(false).optional(),
+  disableCascadeAttn: boolFlag.default(false).optional(),
+  skipTokenizerInit: boolFlag.default(false).optional(),
+  enablePromptEmbeds: boolFlag.default(false).optional(),
   servedModelName: z.string().nullable().optional(),
-  configFormat: z.enum(["auto", "hf", "mistral"]).default("auto"),
+  configFormat: z.enum(["auto", "hf", "mistral"]).default("auto").optional(),
   hfToken: z.union([z.string(), z.boolean()]).nullable().optional(), // True => use CLI login token
-  hfOverrides: jsonLike.default({}),
+  hfOverrides: jsonLike.default({}).optional(),
   poolerConfig: jsonLike.nullable().optional(),
   overridePoolerConfig: jsonLike.nullable().optional(), // deprecated
   logitsProcessorPattern: z.string().nullable().optional(),
-  generationConfig: z.union([z.literal("auto"), z.literal("vllm"), z.string()]).default("auto"),
-  overrideGenerationConfig: jsonLike.default({}),
-  enableSleepMode: boolFlag.default(false),
-  modelImpl: z.enum(["auto", "terratorch", "transformers", "vllm"]).default("auto"),
+  generationConfig: z.union([z.literal("auto"), z.literal("vllm"), z.string()]).default("auto").optional(),
+  overrideGenerationConfig: jsonLike.default({}).optional(),
+  enableSleepMode: boolFlag.default(false).optional(),
+  modelImpl: z.enum(["auto", "terratorch", "transformers", "vllm"]).default("auto").optional(),
   overrideAttentionDtype: z.string().nullable().optional(),
   logitsProcessors: z.union([z.array(z.string()), z.string()]).nullable().optional(),
   ioProcessorPlugin: z.string().nullable().optional(),
@@ -63,13 +63,13 @@ export const LoadConfigSchema = z.object({
     "sharded_state",
     "gguf",
     "mistral",
-  ]).default("auto"),
+  ]).default("auto").optional(),
   downloadDir: z.string().nullable().optional(),
-  safetensorsLoadStrategy: z.enum(["lazy", "eager", "torchao"]).default("lazy"),
-  modelLoaderExtraConfig: jsonLike.default({}),
-  ignorePatterns: z.array(z.string()).default(["original/**/*"]),
-  useTqdmOnLoad: boolFlag.default(true),
-  ptLoadMapLocation: z.union([z.literal("cpu"), z.literal("cuda"), jsonLike]).default("cpu"),
+  safetensorsLoadStrategy: z.enum(["lazy", "eager", "torchao"]).default("lazy").optional(),
+  modelLoaderExtraConfig: jsonLike.default({}).optional(),
+  ignorePatterns: z.array(z.string()).default(["original/**/*"]).optional(),
+  useTqdmOnLoad: boolFlag.default(true).optional(),
+  ptLoadMapLocation: z.union([z.literal("cpu"), z.literal("cuda"), jsonLike]).default("cpu").optional(),
 });
 
 // StructuredOutputsConfig
@@ -86,7 +86,7 @@ export const StructuredOutputsConfigSchema = z.object({
     "seed_oss",
     "step3",
     "",
-  ]).default(""),
+  ]).default("").optional(),
   guidedDecodingBackend: z.string().nullable().optional(), // deprecated
   guidedDecodingDisableFallback: z.boolean().nullable().optional(), // deprecated
   guidedDecodingDisableAnyWhitespace: z.boolean().nullable().optional(), // deprecated
@@ -96,78 +96,78 @@ export const StructuredOutputsConfigSchema = z.object({
 // ParallelConfig
 export const ParallelConfigSchema = z.object({
   distributedExecutorBackend: z.enum(["external_launcher", "mp", "ray", "uni"]).nullable().optional(),
-  pipelineParallelSize: z.number().int().min(1).default(1),
-  tensorParallelSize: z.number().int().min(1).default(1),
-  decodeContextParallelSize: z.number().int().min(1).default(1),
-  dataParallelSize: z.number().int().min(1).default(1),
+  pipelineParallelSize: z.number().int().min(1).default(1).optional(),
+  tensorParallelSize: z.number().int().min(1).default(1).optional(),
+  decodeContextParallelSize: z.number().int().min(1).default(1).optional(),
+  dataParallelSize: z.number().int().min(1).default(1).optional(),
   dataParallelRank: z.number().int().nullable().optional(),
   dataParallelStartRank: z.number().int().nullable().optional(),
   dataParallelSizeLocal: z.number().int().nullable().optional(),
   dataParallelAddress: z.string().nullable().optional(),
   dataParallelRpcPort: port.nullable().optional(),
-  dataParallelBackend: z.enum(["mp", "ray"]).default("mp"),
-  dataParallelHybridLb: boolFlag.default(false),
-  enableExpertParallel: boolFlag.default(false),
-  enableDbo: boolFlag.default(false),
-  dboDecodeTokenThreshold: z.number().int().default(32),
-  dboPrefillTokenThreshold: z.number().int().default(512),
-  disableNcclForDpSynchronization: boolFlag.default(false),
-  enableEplb: boolFlag.default(false),
+  dataParallelBackend: z.enum(["mp", "ray"]).default("mp").optional(),
+  dataParallelHybridLb: boolFlag.default(false).optional(),
+  enableExpertParallel: boolFlag.default(false).optional(),
+  enableDbo: boolFlag.default(false).optional(),
+  dboDecodeTokenThreshold: z.number().int().default(32).optional(),
+  dboPrefillTokenThreshold: z.number().int().default(512).optional(),
+  disableNcclForDpSynchronization: boolFlag.default(false).optional(),
+  enableEplb: boolFlag.default(false).optional(),
   eplbConfig: jsonLike.default({
     window_size: 1000,
     step_interval: 3000,
     num_redundant_experts: 0,
     log_balancedness: false,
-  }),
-  expertPlacementStrategy: z.enum(["linear", "round_robin"]).default("linear"),
+  }).optional(),
+  expertPlacementStrategy: z.enum(["linear", "round_robin"]).default("linear").optional(),
   numRedundantExperts: z.number().int().nullable().optional(), // deprecated
   eplbWindowSize: z.number().int().nullable().optional(),      // deprecated
   eplbStepInterval: z.number().int().nullable().optional(),    // deprecated
   eplbLogBalancedness: z.boolean().nullable().optional(),      // deprecated
   maxParallelLoadingWorkers: z.number().int().nullable().optional(),
-  rayWorkersUseNsight: boolFlag.default(false),
-  disableCustomAllReduce: boolFlag.default(false),
-  workerCls: z.union([z.literal("auto"), z.string()]).default("auto"),
-  workerExtensionCls: z.string().default(""),
-  enableMultimodalEncoderDataParallel: boolFlag.default(false),
+  rayWorkersUseNsight: boolFlag.default(false).optional(),
+  disableCustomAllReduce: boolFlag.default(false).optional(),
+  workerCls: z.union([z.literal("auto"), z.string()]).default("auto").optional(),
+  workerExtensionCls: z.string().default("").optional(),
+  enableMultimodalEncoderDataParallel: boolFlag.default(false).optional(),
 });
 
 // CacheConfig
 export const CacheConfigSchema = z.object({
   blockSize: z.union([z.literal(1), z.literal(8), z.literal(16), z.literal(32), z.literal(64), z.literal(128)]).nullable().optional(),
-  gpuMemoryUtilization: z.number().min(0).max(1).default(0.9),
+  gpuMemoryUtilization: z.number().min(0).max(1).default(0.9).optional(),
   kvCacheMemoryBytes: humanReadableInt.nullable().optional(),
-  swapSpace: z.number().int().min(0).default(4),
-  kvCacheDtype: z.enum(["auto", "bfloat16", "fp8", "fp8_e4m3", "fp8_e5m2", "fp8_inc"]).default("auto"),
+  swapSpace: z.number().int().min(0).default(4).optional(),
+  kvCacheDtype: z.enum(["auto", "bfloat16", "fp8", "fp8_e4m3", "fp8_e5m2", "fp8_inc"]).default("auto").optional(),
   numGpuBlocksOverride: z.number().int().nullable().optional(),
   enablePrefixCaching: boolFlag.nullable().optional(), // default depends on V1
-  prefixCachingHashAlgo: z.enum(["sha256", "sha256_cbor"]).default("sha256"),
-  cpuOffloadGb: z.number().min(0).default(0),
-  calculateKvScales: boolFlag.default(false),
-  kvSharingFastPrefill: boolFlag.default(false),
-  mambaCacheDtype: z.enum(["auto", "float32"]).default("auto"),
-  mambaSsmCacheDtype: z.enum(["auto", "float32"]).default("auto"),
+  prefixCachingHashAlgo: z.enum(["sha256", "sha256_cbor"]).default("sha256").optional(),
+  cpuOffloadGb: z.number().min(0).default(0).optional(),
+  calculateKvScales: boolFlag.default(false).optional(),
+  kvSharingFastPrefill: boolFlag.default(false).optional(),
+  mambaCacheDtype: z.enum(["auto", "float32"]).default("auto").optional(),
+  mambaSsmCacheDtype: z.enum(["auto", "float32"]).default("auto").optional(),
 });
 
 // MultiModalConfig
 export const MultiModalConfigSchema = z.object({
-  limitMmPerPrompt: jsonLike.default({}), // supports legacy and mixed formats
-  mediaIoKwargs: jsonLike.default({}),
+  limitMmPerPrompt: jsonLike.default({}).optional(), // supports legacy and mixed formats
+  mediaIoKwargs: jsonLike.default({}).optional(),
   mmProcessorKwargs: jsonLike.nullable().optional(),
-  mmProcessorCacheGb: z.number().min(0).default(4),
-  disableMmPreprocessorCache: boolFlag.default(false),
-  mmProcessorCacheType: z.enum(["lru", "shm"]).default("lru"),
-  mmShmCacheMaxObjectSizeMb: z.number().int().min(1).default(128),
-  mmEncoderTpMode: z.enum(["data", "weights"]).default("weights"),
-  interleaveMmStrings: boolFlag.default(false),
-  skipMmProfiling: boolFlag.default(false),
+  mmProcessorCacheGb: z.number().min(0).default(4).optional(),
+  disableMmPreprocessorCache: boolFlag.default(false).optional(),
+  mmProcessorCacheType: z.enum(["lru", "shm"]).default("lru").optional(),
+  mmShmCacheMaxObjectSizeMb: z.number().int().min(1).default(128).optional(),
+  mmEncoderTpMode: z.enum(["data", "weights"]).default("weights").optional(),
+  interleaveMmStrings: boolFlag.default(false).optional(),
+  skipMmProfiling: boolFlag.default(false).optional(),
   videoPruningRate: z.number().min(0).max(1).nullable().optional(),
 });
 
 // LoRAConfig
 export const LoRAConfigSchema = z.object({
   enableLora: boolFlag.nullable().optional(),
-  maxLoras: z.number().int().min(1).default(1),
+  maxLoras: z.number().int().min(1).default(1).optional(),
   maxLoraRank: z.union([
     z.literal(1),
     z.literal(8),
@@ -178,11 +178,11 @@ export const LoRAConfigSchema = z.object({
     z.literal(256),
     z.literal(320),
     z.literal(512),
-  ]).default(16),
-  loraExtraVocabSize: z.union([z.literal(256), z.literal(512)]).default(256), // deprecated
-  loraDtype: z.enum(["auto", "bfloat16", "float16"]).default("auto"),
+  ]).default(16).optional(),
+  loraExtraVocabSize: z.union([z.literal(256), z.literal(512)]).default(256).optional(), // deprecated
+  loraDtype: z.enum(["auto", "bfloat16", "float16"]).default("auto").optional(),
   maxCpuLoras: z.number().int().nullable().optional(),
-  fullyShardedLoras: boolFlag.default(false),
+  fullyShardedLoras: boolFlag.default(false).optional(),
   defaultMmLoras: jsonLike.nullable().optional(),
 });
 
@@ -208,17 +208,17 @@ export const ObservabilityConfigSchema = z.object({
 export const SchedulerConfigSchema = z.object({
   maxNumBatchedTokens: humanReadableInt.nullable().optional(),
   maxNumSeqs: z.number().int().nullable().optional(),
-  maxNumPartialPrefills: z.number().int().min(1).default(1),
-  maxLongPartialPrefills: z.number().int().min(1).default(1),
-  cudaGraphSizes: z.array(z.number().int().min(1)).default([]),
-  longPrefillTokenThreshold: z.number().int().min(0).default(0),
-  numLookaheadSlots: z.number().int().min(0).default(0),
-  schedulingPolicy: z.enum(["fcfs", "priority"]).default("fcfs"),
+  maxNumPartialPrefills: z.number().int().min(1).default(1).optional(),
+  maxLongPartialPrefills: z.number().int().min(1).default(1).optional(),
+  cudaGraphSizes: z.array(z.number().int().min(1)).default([]).optional(),
+  longPrefillTokenThreshold: z.number().int().min(0).default(0).optional(),
+  numLookaheadSlots: z.number().int().min(0).default(0).optional(),
+  schedulingPolicy: z.enum(["fcfs", "priority"]).default("fcfs").optional(),
   enableChunkedPrefill: boolFlag.nullable().optional(),
-  disableChunkedMmInput: boolFlag.default(false),
-  schedulerCls: z.string().default("vllm.core.scheduler.Scheduler"),
-  disableHybridKvCacheManager: boolFlag.default(false),
-  asyncScheduling: boolFlag.default(false),
+  disableChunkedMmInput: boolFlag.default(false).optional(),
+  schedulerCls: z.string().default("vllm.core.scheduler.Scheduler").optional(),
+  disableHybridKvCacheManager: boolFlag.default(false).optional(),
+  asyncScheduling: boolFlag.default(false).optional(),
 });
 
 // VllmConfig
@@ -247,34 +247,34 @@ export const VllmConfigSchema = z.object({
     pass_config: {},
     max_capture_size: null,
     local_cache_dir: null,
-  }),
-  additionalConfig: jsonLike.default({}),
+  }).optional(),
+  additionalConfig: jsonLike.default({}).optional(),
   structuredOutputsConfig: jsonLike.default({
     backend: "auto",
     disable_fallback: false,
     disable_any_whitespace: false,
     disable_additional_properties: false,
     reasoning_parser: "",
-  }),
+  }).optional(),
 });
 
 // EngineArgs (top-level)
 export const EngineArgsSchema = z.object({
-  disableLogStats: boolFlag.default(false),
-  modelConfig: ModelConfigSchema,
-  loadConfig: LoadConfigSchema,
-  structuredOutputsConfig: StructuredOutputsConfigSchema,
-  parallelConfig: ParallelConfigSchema,
-  cacheConfig: CacheConfigSchema,
-  multiModalConfig: MultiModalConfigSchema,
-  loraConfig: LoRAConfigSchema,
-  observabilityConfig: ObservabilityConfigSchema,
-  schedulerConfig: SchedulerConfigSchema,
-  vllmConfig: VllmConfigSchema,
+  disableLogStats: boolFlag.default(false).optional(),
+  modelConfig: ModelConfigSchema.optional(),
+  loadConfig: LoadConfigSchema.optional(),
+  structuredOutputsConfig: StructuredOutputsConfigSchema.optional(),
+  parallelConfig: ParallelConfigSchema.optional(),
+  cacheConfig: CacheConfigSchema.optional(),
+  multiModalConfig: MultiModalConfigSchema.optional(),
+  loraConfig: LoRAConfigSchema.optional(),
+  observabilityConfig: ObservabilityConfigSchema.optional(),
+  schedulerConfig: SchedulerConfigSchema.optional(),
+  vllmConfig: VllmConfigSchema.optional(),
 });
 
 // AsyncEngineArgs
 export const AsyncEngineArgsSchema = z.object({
-  enableLogRequests: boolFlag.default(false),
-  disableLogRequests: boolFlag.default(true), // deprecated
+  enableLogRequests: boolFlag.default(false).optional(),
+  disableLogRequests: boolFlag.default(true).optional(), // deprecated
 });
