@@ -9,11 +9,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=production
-      - VLLM_IMAGE=${VLLM_IMAGE:-vllm/vllm-openai:latest}
-      - VLLM_MODEL=${VLLM_MODEL:-mistralai/Mistral-7B-Instruct-v0.3}
-      - VLLM_PORT=${VLLM_PORT:-8000}
-      - VLLM_CONTAINER=${VLLM_CONTAINER:-vllm-openai}
-      - VLLM_USE_GPU=${VLLM_USE_GPU:-}
       - PORT=${PORT:-3000}
     deploy:
       resources:

@@ -1,9 +1,8 @@
 import type { Express, Request, Response } from 'express';
-import { DEFAULT_MODEL, VLLM_CONTAINER, VLLM_PORT } from '../config.js';
 import { logger } from '../logger.js';
 import { registry } from '../openapi.js';
 import { ChatResponseSchema, CompletionsResponseSchema, EmbeddingsResponseSchema, ModelsResponseSchema, OpenAIChatRequestSchema, OpenAICompletionsRequestSchema, OpenAIEmbeddingsRequestSchema } from '../schemas.js';
-import { containerRunning, ensureVllmForModel } from '../services/docker.js';
+import { ensureVllmForModel } from '../services/docker.js';
 import { getLocalHuggingFaceModels } from '../services/downloads.js';
 import { proxyJsonToPort, streamSSEToPort } from '../services/proxy.js';
 
@@ -42,7 +41,7 @@ export function mountOpenAIRoutes(app: Express) {
     try {
       const bodyData = OpenAIChatRequestSchema.parse(req.body);
       const queryModel = req.query.model as string;
-      const model = queryModel || bodyData.model || DEFAULT_MODEL;
+      const model = queryModel || bodyData.model;
       const requestData = { ...bodyData, model };
       const { port } = await ensureVllmForModel(model);
       if (requestData.stream) {
@@ -65,7 +64,7 @@ export function mountOpenAIRoutes(app: Express) {
     try {
       const bodyData = OpenAICompletionsRequestSchema.parse(req.body);
       const queryModel = req.query.model as string;
-      const model = queryModel || bodyData.model || DEFAULT_MODEL;
+      const model = queryModel || bodyData.model;
       const requestData = { ...bodyData, model };
       const { port } = await ensureVllmForModel(model);
       if (requestData.stream) {
@@ -108,19 +107,7 @@ export function mountOpenAIRoutes(app: Express) {
     try {
       const localModels = getLocalHuggingFaceModels();
       let vllmModels: Array<{ id: string; object: string; created: number; owned_by: string }> = [];
-      try {
-        const isRunning = await containerRunning(VLLM_CONTAINER);
-        if (isRunning) {
-          const axios = (await import('axios')).default;
-          const url = `http://192.168.1.3:${VLLM_PORT}/v1/models`;
-          const { data } = await axios.get(url);
-          if (data.data && Array.isArray(data.data)) {
-            vllmModels = data.data.map((model: any) => ({ id: model.id, object: 'model', created: model.created || Math.floor(Date.now() / 1000), owned_by: model.owned_by || 'vllm' }));
-          }
-        }
-      } catch (err) {
-        logger.warn('vllm_models_fetch_failed', { errorMessage: err instanceof Error ? err.message : String(err) });
-      }
+
       const allModels = [...localModels];
       for (const vllmModel of vllmModels) {
         if (!allModels.find(m => m.id === vllmModel.id)) {

@@ -1,8 +1,8 @@
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { DEFAULT_MODEL, VLLM_CONTAINER, VLLM_IMAGE, VLLM_PORT, VLLM_USE_GPU } from "../config.js";
+import { VLLM_CONTAINER, VLLM_IMAGE, VLLM_PORT } from "../config.js";
 import { logger } from "../logger.js";
-import type { ChildProcessWithoutNullStreams } from "node:child_process";
 
 const execFileAsync = promisify(execFile);
 
@@ -99,7 +99,7 @@ export async function ensureVllmForModel(
       "-p",
       "0:8000",
       ...envArgs,
-      ...(VLLM_USE_GPU ? ["--gpus", "all"] : []),
+      "--gpus", "all",
       VLLM_IMAGE,
       ...vllmArgs,
       "--model",

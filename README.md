@@ -90,13 +90,3 @@ The application consists of two services:
 
 **Networks:**
 - Both services communicate via an isolated Docker network
-
-### Environment Variables
-
-- `VLLM_IMAGE` - Docker image (default: `vllm/vllm-openai:latest`)
-- `VLLM_MODEL` - Model to load (default: `mistralai/Mistral-7B-Instruct-v0.3`)
-- `VLLM_PORT` - Container port (default: `8000`)
-- `VLLM_CONTAINER` - Container name (default: `vllm-openai`)
-- `VLLM_USE_GPU` - Set to `1` to enable `--gpus all`
-- `PORT` - API server port (default: `3000`)
-- `HUGGING_FACE_HUB_TOKEN` - Optional: Hugging Face authentication token for private models
