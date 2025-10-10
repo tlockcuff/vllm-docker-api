@@ -79,11 +79,20 @@ export async function ensureVllmForModel(model: string, requestData?: z.infer<ty
 
     const vllmArgs: string[] = [];
     if (requestData) {
-      vllmArgs.push(
-        ...Object.entries(requestData)
-          .filter(([key]) => key !== "model")
-          .map(([key, value]) => `--${key}=${value}`)
-      );
+
+      for (const [key, value] of Object.entries(requestData)) {
+        if (key === "model") continue;
+        if (value === undefined || value === null) continue;
+        const flag = key.replace(/([A-Z])/g, "-$1").toLowerCase();
+
+        if (typeof value === "boolean") {
+          if (value) vllmArgs.push(`--${flag}`);
+          continue;
+        }
+
+        const serialized = typeof value === "object" ? JSON.stringify(value) : String(value);
+        vllmArgs.push(`--${flag}=${serialized}`);
+      }
     }
     console.log(`Starting vLLM container with args: ${vllmArgs.join(" ")}`);
 

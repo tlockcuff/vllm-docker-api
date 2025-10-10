@@ -23,7 +23,7 @@ export const StatusResponseSchema = z.object({
 });
 
 export const StartRequestSchema = z.object({
-  model: z.string().optional().describe("Model to load (optional, uses default if not provided)"),
+  model: z.string().optional().describe("Model to load"),
   ...ModelConfigSchema.shape,
   ...LoadConfigSchema.shape,
   ...StructuredOutputsConfigSchema.shape,
