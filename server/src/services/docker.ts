@@ -133,6 +133,8 @@ export async function ensureVllmForModel(model: string, requestData?: z.infer<ty
     }
   }
   const port = await getHostPort(name);
+  // Wait for vLLM container to be ready on its internal port before returning
+  await waitForVllmReadiness(name, 8000, 45000);
   return { name, port };
 }
 
@@ -183,4 +185,29 @@ export function stopLogStreaming(containerName: string) {
     } catch {}
     logStreams.delete(containerName);
   }
+}
+
+async function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForVllmReadiness(containerName: string, containerPort: number, timeoutMs: number) {
+  const start = Date.now();
+  const axios = (await import("axios")).default;
+  const url = `http://${containerName}:${containerPort}/v1/models`;
+  let attempt = 0;
+  while (Date.now() - start < timeoutMs) {
+    attempt += 1;
+    try {
+      const resp = await axios.get(url, { timeout: 1500 });
+      if (resp.status >= 200 && resp.status < 300) {
+        logger.info("vllm_readiness_ok", { containerName, attempt });
+        return;
+      }
+    } catch (e) {
+      // ECONNREFUSED / EAI_AGAIN while the server is booting; retry
+    }
+    await wait(500);
+  }
+  logger.warn("vllm_readiness_timeout", { containerName, waitedMs: timeoutMs });
 }
