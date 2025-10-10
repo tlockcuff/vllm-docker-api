@@ -1,23 +1,25 @@
 import type { Request, Response } from 'express';
-import { VLLM_PORT } from '../config.js';
+import { VLLM_CONTAINER, VLLM_PORT } from '../config.js';
 
 export async function proxyJson(path: string, payload: any) {
   const axios = (await import('axios')).default;
-  const url = `http://192.168.1.3:${VLLM_PORT}${path}`;
+  const url = `http://${VLLM_CONTAINER}:${VLLM_PORT}${path}`;
   const { data } = await axios.post(url, payload);
   return data;
 }
 
 export async function proxyJsonToPort(port: number, path: string, payload: any) {
   const axios = (await import('axios')).default;
-  const url = `http://192.168.1.3:${port}${path}`;
+  // Prefer container DNS when the vLLM container is on the same network; fallback to localhost:port
+  const host = VLLM_CONTAINER || '127.0.0.1';
+  const url = `http://${host}:${port}${path}`;
   const { data } = await axios.post(url, payload);
   return data;
 }
 
 export async function streamSSE(req: Request, res: Response, path: string, payload: any) {
   const axios = (await import('axios')).default;
-  const url = `http://192.168.1.3:${VLLM_PORT}${path}`;
+  const url = `http://${VLLM_CONTAINER}:${VLLM_PORT}${path}`;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -33,7 +35,8 @@ export async function streamSSE(req: Request, res: Response, path: string, paylo
 
 export async function streamSSEToPort(req: Request, res: Response, port: number, path: string, payload: any) {
   const axios = (await import('axios')).default;
-  const url = `http://192.168.1.3:${port}${path}`;
+  const host = VLLM_CONTAINER || '127.0.0.1';
+  const url = `http://${host}:${port}${path}`;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
