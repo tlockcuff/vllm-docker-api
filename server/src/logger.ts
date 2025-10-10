@@ -11,7 +11,7 @@ function format(level: LogLevel, message: string, fields?: LogFields) {
     msg: message,
   } as Record<string, unknown>;
   const payload = fields ? { ...base, ...fields } : base;
-  return JSON.stringify(payload);
+  return message
 }
 
 export const logger = {

@@ -15,18 +15,6 @@ services:
       - VLLM_CONTAINER=${VLLM_CONTAINER:-vllm-openai}
       - VLLM_USE_GPU=${VLLM_USE_GPU:-}
       - PORT=${PORT:-3000}
-    networks:
-      - vllm-network
-
-  vllm:
-    image: ${VLLM_IMAGE:-vllm/vllm-openai:latest}
-    ports:
-      - "${VLLM_PORT:-8000}:8000"
-    environment:
-      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
-    volumes:
-      - ./models:/root/.cache/huggingface/hub
-    command: --model ${VLLM_MODEL:-mistralai/Mistral-7B-Instruct-v0.3}
     deploy:
       resources:
         reservations:
@@ -36,8 +24,6 @@ services:
               capabilities: [gpu]
     networks:
       - vllm-network
-    profiles:
-      - gpu
 
 networks:
   vllm-network:

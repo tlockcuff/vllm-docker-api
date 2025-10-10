@@ -27,10 +27,24 @@ export async function containerRunning(name: string) {
 export async function ensureVllm(model: string = DEFAULT_MODEL) {
   const exists = await containerExists(VLLM_CONTAINER);
   if (!exists) {
+    const envArgs: string[] = [];
+    if (process.env.VLLM_LOGGING_LEVEL) {
+      envArgs.push('-e', `VLLM_LOGGING_LEVEL=${process.env.VLLM_LOGGING_LEVEL}`);
+    }
+    if (process.env.HUGGING_FACE_HUB_TOKEN) {
+      envArgs.push('-e', `HUGGING_FACE_HUB_TOKEN=${process.env.HUGGING_FACE_HUB_TOKEN}`);
+    }
+    if (process.env.VLLM_DEVICE) {
+      envArgs.push('-e', `VLLM_DEVICE=${process.env.VLLM_DEVICE}`);
+    } else if (!VLLM_USE_GPU) {
+      // Default to CPU when GPU is not explicitly requested/available
+      envArgs.push('-e', 'VLLM_DEVICE=cpu');
+    }
+
     const args = [
       'run', '-d', '--restart', 'unless-stopped', '--name', VLLM_CONTAINER,
       '-p', `${VLLM_PORT}:8000`,
-      ...(process.env.VLLM_LOGGING_LEVEL ? ['-e', `VLLM_LOGGING_LEVEL=${process.env.VLLM_LOGGING_LEVEL}`] : []),
+      ...envArgs,
       ...(VLLM_USE_GPU ? ['--gpus', 'all'] : []),
       VLLM_IMAGE,
       '--model', model,
@@ -92,11 +106,25 @@ export async function ensureVllmForModel(model: string): Promise<{ name: string;
   const name = getContainerNameForModel(model);
   const exists = await containerExists(name);
   if (!exists) {
+    const envArgs: string[] = [];
+    if (process.env.VLLM_LOGGING_LEVEL) {
+      envArgs.push('-e', `VLLM_LOGGING_LEVEL=${process.env.VLLM_LOGGING_LEVEL}`);
+    }
+    if (process.env.HUGGING_FACE_HUB_TOKEN) {
+      envArgs.push('-e', `HUGGING_FACE_HUB_TOKEN=${process.env.HUGGING_FACE_HUB_TOKEN}`);
+    }
+    if (process.env.VLLM_DEVICE) {
+      envArgs.push('-e', `VLLM_DEVICE=${process.env.VLLM_DEVICE}`);
+    } else if (!VLLM_USE_GPU) {
+      // Default to CPU when GPU is not explicitly requested/available
+      envArgs.push('-e', 'VLLM_DEVICE=cpu');
+    }
+
     const args = [
       'run', '-d', '--restart', 'unless-stopped', '--name', name,
       // Let Docker assign a random available host port; we'll discover it via inspect
       '-p', '0:8000',
-      ...(process.env.VLLM_LOGGING_LEVEL ? ['-e', `VLLM_LOGGING_LEVEL=${process.env.VLLM_LOGGING_LEVEL}`] : []),
+      ...envArgs,
       ...(VLLM_USE_GPU ? ['--gpus', 'all'] : []),
       VLLM_IMAGE,
       '--model', model,
