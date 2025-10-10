@@ -79,7 +79,11 @@ export async function ensureVllmForModel(model: string, requestData?: z.infer<ty
 
     const vllmArgs: string[] = [];
     if (requestData) {
-      vllmArgs.push(...Object.entries(requestData).map(([key, value]) => `--${key}=${value}`));
+      vllmArgs.push(
+        ...Object.entries(requestData)
+          .filter(([key]) => key !== "model")
+          .map(([key, value]) => `--${key}=${value}`)
+      );
     }
     console.log(`Starting vLLM container with args: ${vllmArgs.join(" ")}`);
 
