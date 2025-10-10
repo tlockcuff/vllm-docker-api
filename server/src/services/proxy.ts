@@ -8,11 +8,16 @@ export async function proxyJson(path: string, payload: any) {
   return data;
 }
 
-export async function proxyJsonToPort(port: number, path: string, payload: any) {
+export async function proxyJsonToPort(port: number, path: string, payload: any, containerName?: string) {
   const axios = (await import('axios')).default;
-  // Prefer container DNS when the vLLM container is on the same network; fallback to localhost:port
-  const host = VLLM_CONTAINER || '127.0.0.1';
-  const url = `http://${host}:${port}${path}`;
+  // If we know the container name (same Docker network), use container DNS and the container port.
+  if (containerName) {
+    const url = `http://${containerName}:${VLLM_PORT}${path}`;
+    const { data } = await axios.post(url, payload);
+    return data;
+  }
+  // Fallback: connect to host-mapped port (useful when not on same network)
+  const url = `http://127.0.0.1:${port}${path}`;
   const { data } = await axios.post(url, payload);
   return data;
 }
@@ -33,10 +38,11 @@ export async function streamSSE(req: Request, res: Response, path: string, paylo
   upstream.data.on('error', () => res.end());
 }
 
-export async function streamSSEToPort(req: Request, res: Response, port: number, path: string, payload: any) {
+export async function streamSSEToPort(req: Request, res: Response, port: number, path: string, payload: any, containerName?: string) {
   const axios = (await import('axios')).default;
-  const host = VLLM_CONTAINER || '127.0.0.1';
-  const url = `http://${host}:${port}${path}`;
+  const url = containerName
+    ? `http://${containerName}:${VLLM_PORT}${path}`
+    : `http://127.0.0.1:${port}${path}`;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');

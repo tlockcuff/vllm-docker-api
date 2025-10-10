@@ -2,7 +2,7 @@ import type { Express, Request, Response } from 'express';
 import { logger } from '../logger.js';
 import { registry } from '../openapi.js';
 import { ChatResponseSchema, CompletionsResponseSchema, EmbeddingsResponseSchema, ModelsResponseSchema, OpenAIChatRequestSchema, OpenAICompletionsRequestSchema, OpenAIEmbeddingsRequestSchema } from '../schemas.js';
-import { ensureVllmForModel } from '../services/docker.js';
+import { ensureVllmForModel, getContainerNameForModel } from '../services/docker.js';
 import { getLocalHuggingFaceModels } from '../services/downloads.js';
 import { proxyJsonToPort, streamSSEToPort } from '../services/proxy.js';
 
@@ -44,10 +44,11 @@ export function mountOpenAIRoutes(app: Express) {
       const model = queryModel || bodyData.model;
       const requestData = { ...bodyData, model };
       const { port } = await ensureVllmForModel(model);
+      const containerName = getContainerNameForModel(model);
       if (requestData.stream) {
-        return await streamSSEToPort(req, res, port, '/v1/chat/completions', requestData);
+        return await streamSSEToPort(req, res, port, '/v1/chat/completions', requestData, containerName);
       }
-      const data = await proxyJsonToPort(port, '/v1/chat/completions', requestData);
+      const data = await proxyJsonToPort(port, '/v1/chat/completions', requestData, containerName);
       const response = ChatResponseSchema.parse(data);
       res.json(response);
     } catch (e) {
@@ -67,10 +68,11 @@ export function mountOpenAIRoutes(app: Express) {
       const model = queryModel || bodyData.model;
       const requestData = { ...bodyData, model };
       const { port } = await ensureVllmForModel(model);
+      const containerName = getContainerNameForModel(model);
       if (requestData.stream) {
-        return await streamSSEToPort(req, res, port, '/v1/completions', requestData);
+        return await streamSSEToPort(req, res, port, '/v1/completions', requestData, containerName);
       }
-      const data = await proxyJsonToPort(port, '/v1/completions', requestData);
+      const data = await proxyJsonToPort(port, '/v1/completions', requestData, containerName);
       const response = CompletionsResponseSchema.parse(data);
       res.json(response);
     } catch (e) {
@@ -90,7 +92,8 @@ export function mountOpenAIRoutes(app: Express) {
       const model = queryModel || bodyData.model;
       const requestData = { ...bodyData, model };
       const { port } = await ensureVllmForModel(model);
-      const data = await proxyJsonToPort(port, '/v1/embeddings', requestData);
+      const containerName = getContainerNameForModel(model);
+      const data = await proxyJsonToPort(port, '/v1/embeddings', requestData, containerName);
       const response = EmbeddingsResponseSchema.parse(data);
       res.json(response);
     } catch (e) {
