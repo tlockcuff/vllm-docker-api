@@ -10,6 +10,8 @@ export const StatusResponseSchema = z.object({
 
 export const StartRequestSchema = z.object({
   model: z.string().optional().describe('Model to load (optional, uses default if not provided)'),
+  dtype: z.enum(['float16', 'float32', 'bfloat16']).optional().describe('Data type to use for the model'),
+  tensorParallelSize: z.number().int().min(1).optional().describe('Number of GPUs to use for tensor parallelism'),
 });
 
 export const StartResponseSchema = z.object({
