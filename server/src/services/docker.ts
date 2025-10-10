@@ -135,9 +135,9 @@ export async function getHostPort(containerName: string): Promise<number> {
 
 export async function ensureVllmForModel(
   model: string,
-  options?: { tensorParallelSize?: number; dtype?: string; enableSleepMode?: boolean; cpuOffloadGb?: number }
+  options?: { tensorParallelSize?: number; dtype?: string; enableSleepMode?: boolean; cpuOffloadGb?: number; quantization?: string; kvCacheDtype?: string; maxModelLen?: number }
 ): Promise<{ name: string; port: number }> {
-  const { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb } = options || {};
+  const { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb, quantization, kvCacheDtype, maxModelLen } = options || {};
   const name = getContainerNameForModel(model);
   const exists = await containerExists(name);
   if (!exists) {
@@ -158,6 +158,15 @@ export async function ensureVllmForModel(
     const vllmArgs: string[] = [];
     vllmArgs.push("--device", "gpu");
     vllmArgs.push("--dtype", dtype ?? "float16");
+    if (quantization) {
+      vllmArgs.push("--quantization", String(quantization));
+    }
+    if (kvCacheDtype) {
+      vllmArgs.push("--kv-cache-dtype", String(kvCacheDtype));
+    }
+    if (typeof maxModelLen === "number" && maxModelLen > 0) {
+      vllmArgs.push("--max-model-len", String(maxModelLen));
+    }
     if (enableSleepMode) {
       vllmArgs.push("--enable-sleep-mode");
     }

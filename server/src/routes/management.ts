@@ -1,16 +1,7 @@
 import type { Express, Request, Response } from "express";
+import { DEFAULT_MODEL, VLLM_IMAGE, VLLM_PORT } from "../config.js";
+import { logger } from "../logger.js";
 import { registry } from "../openapi.js";
-import { DEFAULT_MODEL, PORT, VLLM_CONTAINER, VLLM_IMAGE, VLLM_PORT } from "../config.js";
-import {
-  ensureVllm,
-  containerExists,
-  containerRunning,
-  runDocker,
-  ensureVllmForModel,
-  getContainerNameForModel,
-  getHostPort,
-  stopLogStreaming,
-} from "../services/docker.js";
 import {
   HealthResponseSchema,
   RemoveResponseSchema,
@@ -19,7 +10,15 @@ import {
   StatusResponseSchema,
   StopResponseSchema,
 } from "../schemas.js";
-import { logger } from "../logger.js";
+import {
+  containerExists,
+  containerRunning,
+  ensureVllmForModel,
+  getContainerNameForModel,
+  getHostPort,
+  runDocker,
+  stopLogStreaming
+} from "../services/docker.js";
 
 export function mountManagementRoutes(app: Express) {
   // OpenAPI registrations
@@ -51,12 +50,15 @@ export function mountManagementRoutes(app: Express) {
     try {
       const requestData = StartRequestSchema.parse(req.body);
       const model = requestData.model && requestData.model.length > 0 ? requestData.model : DEFAULT_MODEL;
-      const { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb } = requestData as any;
+      const { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb, quantization, kvCacheDtype, maxModelLen } = requestData as any;
       await ensureVllmForModel(model, {
         tensorParallelSize,
         dtype,
         enableSleepMode,
         cpuOffloadGb,
+        quantization,
+        kvCacheDtype,
+        maxModelLen,
       });
       const response = StartResponseSchema.parse({ ok: true, model });
       res.json(response);

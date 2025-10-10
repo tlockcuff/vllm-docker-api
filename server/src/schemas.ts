@@ -14,6 +14,9 @@ export const StartRequestSchema = z.object({
   enableSleepMode: z.boolean().optional().describe('Whether to enable sleep mode'),
   cpuOffloadGb: z.number().int().min(0).optional().describe('Number of GB of CPU memory to offload to'),
   tensorParallelSize: z.number().int().min(1).optional().describe('Number of GPUs to use for tensor parallelism'),
+  quantization: z.string().optional().describe('Weight-only quantization (e.g., "awq", "gptq", "bitsandbytes")'),
+  kvCacheDtype: z.enum(['auto', 'fp8']).optional().default('fp8').describe('KV cache dtype (e.g., "auto", "fp8")'),
+  maxModelLen: z.number().int().optional().describe('Maximum sequence length (context window limit)'),
 });
 
 export const StartResponseSchema = z.object({
