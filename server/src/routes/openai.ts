@@ -1,10 +1,11 @@
 import type { Express, Request, Response } from 'express';
 import { registry } from '../openapi.js';
 import { DEFAULT_MODEL, VLLM_CONTAINER, VLLM_PORT } from '../config.js';
-import { ensureVllm, containerRunning } from '../services/docker.js';
-import { proxyJson, streamSSE } from '../services/proxy.js';
+import { ensureVllm, containerRunning, ensureVllmForModel } from '../services/docker.js';
+import { proxyJson, streamSSE, proxyJsonToPort, streamSSEToPort } from '../services/proxy.js';
 import { ChatResponseSchema, CompletionsResponseSchema, EmbeddingsResponseSchema, ModelsResponseSchema, OpenAIChatRequestSchema, OpenAICompletionsRequestSchema, OpenAIEmbeddingsRequestSchema } from '../schemas.js';
 import { getLocalHuggingFaceModels } from '../services/downloads.js';
+import { logger } from '../logger.js';
 
 export function mountOpenAIRoutes(app: Express) {
   // Register OpenAPI paths
@@ -43,14 +44,15 @@ export function mountOpenAIRoutes(app: Express) {
       const queryModel = req.query.model as string;
       const model = queryModel || bodyData.model || DEFAULT_MODEL;
       const requestData = { ...bodyData, model };
-      await ensureVllm(model);
+      const { port } = await ensureVllmForModel(model);
       if (requestData.stream) {
-        return await streamSSE(req, res, '/v1/chat/completions', requestData);
+        return await streamSSEToPort(req, res, port, '/v1/chat/completions', requestData);
       }
-      const data = await proxyJson('/v1/chat/completions', requestData);
+      const data = await proxyJsonToPort(port, '/v1/chat/completions', requestData);
       const response = ChatResponseSchema.parse(data);
       res.json(response);
     } catch (e) {
+      logger.error('route_error', { route: '/v1/chat/completions', method: req.method, path: req.originalUrl, errorMessage: String(e), issues: (e as any)?.issues });
       if ((e as any).issues) {
         res.status(400).json({ error: { message: 'Invalid request data', type: 'invalid_request_error', param: null, code: null }, details: (e as any).issues });
       } else {
@@ -65,14 +67,15 @@ export function mountOpenAIRoutes(app: Express) {
       const queryModel = req.query.model as string;
       const model = queryModel || bodyData.model || DEFAULT_MODEL;
       const requestData = { ...bodyData, model };
-      await ensureVllm(model);
+      const { port } = await ensureVllmForModel(model);
       if (requestData.stream) {
-        return await streamSSE(req, res, '/v1/completions', requestData);
+        return await streamSSEToPort(req, res, port, '/v1/completions', requestData);
       }
-      const data = await proxyJson('/v1/completions', requestData);
+      const data = await proxyJsonToPort(port, '/v1/completions', requestData);
       const response = CompletionsResponseSchema.parse(data);
       res.json(response);
     } catch (e) {
+      logger.error('route_error', { route: '/v1/completions', method: req.method, path: req.originalUrl, errorMessage: String(e), issues: (e as any)?.issues });
       if ((e as any).issues) {
         res.status(400).json({ error: { message: 'Invalid request data', type: 'invalid_request_error', param: null, code: null }, details: (e as any).issues });
       } else {
@@ -87,11 +90,12 @@ export function mountOpenAIRoutes(app: Express) {
       const queryModel = req.query.model as string;
       const model = queryModel || bodyData.model;
       const requestData = { ...bodyData, model };
-      await ensureVllm(model);
-      const data = await proxyJson('/v1/embeddings', requestData);
+      const { port } = await ensureVllmForModel(model);
+      const data = await proxyJsonToPort(port, '/v1/embeddings', requestData);
       const response = EmbeddingsResponseSchema.parse(data);
       res.json(response);
     } catch (e) {
+      logger.error('route_error', { route: '/v1/embeddings', method: req.method, path: req.originalUrl, errorMessage: String(e), issues: (e as any)?.issues });
       if ((e as any).issues) {
         res.status(400).json({ error: { message: 'Invalid request data', type: 'invalid_request_error', param: null, code: null }, details: (e as any).issues });
       } else {
@@ -100,7 +104,7 @@ export function mountOpenAIRoutes(app: Express) {
     }
   });
 
-  app.get('/v1/models', async (_req: Request, res: Response) => {
+  app.get('/v1/models', async (req: Request, res: Response) => {
     try {
       const localModels = getLocalHuggingFaceModels();
       let vllmModels: Array<{ id: string; object: string; created: number; owned_by: string }> = [];
@@ -114,7 +118,9 @@ export function mountOpenAIRoutes(app: Express) {
             vllmModels = data.data.map((model: any) => ({ id: model.id, object: 'model', created: model.created || Math.floor(Date.now() / 1000), owned_by: model.owned_by || 'vllm' }));
           }
         }
-      } catch {}
+      } catch (err) {
+        logger.warn('vllm_models_fetch_failed', { errorMessage: err instanceof Error ? err.message : String(err) });
+      }
       const allModels = [...localModels];
       for (const vllmModel of vllmModels) {
         if (!allModels.find(m => m.id === vllmModel.id)) {
@@ -124,6 +130,7 @@ export function mountOpenAIRoutes(app: Express) {
       const response = ModelsResponseSchema.parse({ object: 'list', data: allModels });
       res.json(response);
     } catch (e) {
+      logger.error('route_error', { route: '/v1/models', method: req.method, path: req.originalUrl, errorMessage: String(e), issues: (e as any)?.issues });
       if ((e as any).issues) {
         res.status(400).json({ error: { message: 'Invalid request data', type: 'invalid_request_error', param: null, code: null }, details: (e as any).issues });
       } else {

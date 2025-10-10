@@ -2,6 +2,7 @@ import type { Express, Request, Response } from 'express';
 import { registry } from '../openapi.js';
 import { DownloadModelRequestSchema } from '../schemas.js';
 import { cancelDownload, downloadHuggingFaceModel, downloadProgress } from '../services/downloads.js';
+import { logger } from '../logger.js';
 
 export function mountDownloadRoutes(app: Express) {
   registry.registerPath({ method: 'post', path: '/api/models/download', request: { body: { content: { 'application/json': { schema: DownloadModelRequestSchema } } } }, responses: { 200: { description: 'Started or finished download' } } });
@@ -19,6 +20,7 @@ export function mountDownloadRoutes(app: Express) {
         res.status(400).json({ success: false, message: result.message, model: requestData.model });
       }
     } catch (e) {
+      logger.error('route_error', { route: '/api/models/download', method: req.method, path: req.originalUrl, errorMessage: String(e), issues: (e as any)?.issues });
       if ((e as any).issues) {
         res.status(400).json({ success: false, message: 'Invalid request data', details: (e as any).issues });
       } else {
@@ -42,6 +44,7 @@ export function mountDownloadRoutes(app: Express) {
         return res.json({ success: true, downloads: allProgress });
       }
     } catch (error) {
+      logger.error('route_error', { route: '/api/models/download/progress', method: req.method, path: req.originalUrl, errorMessage: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: `Error retrieving download progress: ${error instanceof Error ? error.message : String(error)}` });
     }
   });
@@ -56,6 +59,7 @@ export function mountDownloadRoutes(app: Express) {
       const { childProcess, ...rest } = progress;
       res.json({ success: true, progress: { ...rest, duration: progress.endTime ? progress.endTime - progress.startTime : Date.now() - progress.startTime } });
     } catch (error) {
+      logger.error('route_error', { route: '/api/models/download/progress/:model', method: req.method, path: req.originalUrl, model: req.params.model, errorMessage: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: `Error retrieving download progress: ${error instanceof Error ? error.message : String(error)}` });
     }
   });
@@ -71,6 +75,7 @@ export function mountDownloadRoutes(app: Express) {
         res.status(code).json(result);
       }
     } catch (error) {
+      logger.error('route_error', { route: '/api/models/download/:model', method: req.method, path: req.originalUrl, model: req.params.model, errorMessage: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: `Error cancelling download: ${error instanceof Error ? error.message : String(error)}` });
     }
   });

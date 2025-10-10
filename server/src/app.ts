@@ -5,10 +5,30 @@ import { mountManagementRoutes } from './routes/management.js';
 import { mountDownloadRoutes } from './routes/downloads.js';
 import { mountOpenAIRoutes } from './routes/openai.js';
 import { generateOpenApiDocument } from './openapi.js';
+import { logger } from './logger.js';
 
 export function createApp(): Express {
   const app = express();
   app.use(json({ limit: '2mb' }));
+
+  // Request/Response logging
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const start = Date.now();
+    const { method, originalUrl } = req;
+    res.on('finish', () => {
+      const durationMs = Date.now() - start;
+      logger.info('http_request', {
+        method,
+        path: originalUrl,
+        status: res.statusCode,
+        durationMs,
+        ip: req.ip,
+        userAgent: req.get('user-agent') || undefined,
+        contentLength: res.getHeader('content-length') || undefined,
+      });
+    });
+    next();
+  });
 
   // Routes
   mountManagementRoutes(app);
@@ -22,6 +42,11 @@ export function createApp(): Express {
 
   // Error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    logger.error('http_error', {
+      errorMessage: err?.message || String(err),
+      issues: err?.issues,
+      stack: err?.stack,
+    });
     if (err && err.issues) {
       return res.status(400).json({ error: 'Invalid request data', details: err.issues });
     }
