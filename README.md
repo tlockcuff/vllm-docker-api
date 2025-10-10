@@ -1,32 +1,102 @@
-# vLLM Multi-Model Docker Compose Stack
+## vLLM Docker API
 
-Run multiple vLLM model servers on a Linux host with NVIDIA GPUs, managed via a FastAPI Admin API and exposed behind an OpenAI-compatible Gateway.
+A clean TypeScript Node.js API to manage vLLM containers via Docker CLI with type-safe Zod validation. No duplication, just solid validation and types.
 
-## Components
-- management-api: lifecycle, HF downloads, GPU-aware orchestration of vLLM workers
-- gateway: OpenAI-compatible proxy that routes by `model` to the correct worker
+### Setup & Usage
 
-## Prereqs
-- NVIDIA driver + nvidia-container-toolkit installed
-- Docker Compose v2
+#### Using Docker Compose (Recommended)
 
-## Quick start
-1. Export tokens (optional but recommended):
-   - `export ADMIN_TOKEN=changeme`
-   - `export GATEWAY_API_KEY=changeme`
-2. Start services:
-   - `docker compose up -d --build`
-3. Download models (optional pre-cache):
-   - `curl -H "Authorization: Bearer $ADMIN_TOKEN" -X POST http://localhost:8081/models/download -H 'Content-Type: application/json' -d '{"repo_id":"meta-llama/Llama-3.1-8B-Instruct"}'`
-4. Start workers (one per GPU):
-   - GPU0: `curl -H "Authorization: Bearer $ADMIN_TOKEN" -X POST http://localhost:8081/instances -H 'Content-Type: application/json' -d '{"name":"llama3-gpu0","model":"meta-llama/Llama-3.1-8B-Instruct","gpu":0}'`
-   - GPU1: `curl -H "Authorization: Bearer $ADMIN_TOKEN" -X POST http://localhost:8081/instances -H 'Content-Type: application/json' -d '{"name":"mistral-gpu1","model":"mistralai/Mistral-7B-Instruct-v0.2","gpu":1}'`
-5. List models via Gateway:
-   - `curl -H "Authorization: Bearer $GATEWAY_API_KEY" http://localhost:8000/v1/models`
-6. Chat completion:
-   - `curl -H "Authorization: Bearer $GATEWAY_API_KEY" -H 'Content-Type: application/json' http://localhost:8000/v1/chat/completions -d '{"model":"llama3-gpu0","messages":[{"role":"user","content":"Hello!"}]}'`
+```bash
+# Clone the repository
+git clone <repository-url>
+cd vllm-docker-api
 
-## Notes
-- Workers run on an internal network only; Gateway is the single public interface.
-- Set `tensor_parallel` to 2 in the instance request to span two GPUs for a large model.
-- Model cache stored under the `vllm_models` volume.
+# Configure environment variables (optional)
+# Create a .env file with any variables you want to override
+# See "Environment Variables" section below for available options
+
+# Start the API and vLLM services
+docker-compose up -d
+
+# Or for GPU support (requires NVIDIA Docker)
+docker-compose --profile gpu up -d
+```
+
+#### Manual Setup (Development)
+
+```bash
+# Install dependencies
+npm install
+
+# For development with auto-reload
+npm run dev
+
+# For production
+npm run build
+npm start
+```
+
+### API Features
+
+**Type-Safe & Validated:**
+- ✅ **Zod schema validation** for all requests/responses
+- ✅ **Runtime type checking** with detailed error messages
+- ✅ **TypeScript-first** design with full type safety
+
+### API Documentation
+
+🌐 **[Interactive API Documentation](./docs/index.html)** - Browsable webpage with detailed schemas, examples, and endpoint specifications.
+
+📖 **[API Reference](./docs/api.md)** - Markdown version of the API documentation.
+
+📋 **[OpenAPI Specification](./docs/openapi.json)** - Import into Postman, Insomnia, or other API testing tools.
+
+#### Using with Postman
+1. Open Postman
+2. Click "Import" → "File"
+3. Select `docs/openapi.json`
+4. Choose your workspace and click "Import"
+5. Set the base URL to `http://localhost:3000`
+
+### API Endpoints
+
+**OpenAI-Compatible Endpoints:**
+- `GET /v1/models` - List models from project directory and vLLM-loaded models
+- `POST /v1/chat/completions` - Chat completions with query parameter model support
+- `POST /v1/completions` - Text completions with query parameter model support
+- `POST /v1/embeddings` - Generate embeddings with query parameter model support
+
+**Management Endpoints:**
+- `POST /api/start` - Start vLLM container with optional `{ model }` body
+- `POST /api/stop` - Stop vLLM container
+- `DELETE /api/remove` - Remove vLLM container
+- `GET /api/status` - Get container status
+- `POST /api/chat` - Proxy to OpenAI-compatible chat completions (legacy)
+- `POST /api/models/download` - Download a model from Hugging Face to local storage
+- `GET /api/models/download/progress` - Get download progress for all or specific models
+- `DELETE /api/models/download/:model` - Cancel a model download
+- `GET /api/health` - Health check
+
+### Docker Architecture
+
+The application consists of two services:
+
+1. **API Service** - Node.js application with Hugging Face CLI for model downloads
+2. **vLLM Service** - The actual vLLM inference server (optional, can run separately)
+
+**Volumes:**
+- `models/` - Persists downloaded models between container restarts
+- `.cache/` - Caches Hugging Face downloads for faster subsequent access
+
+**Networks:**
+- Both services communicate via an isolated Docker network
+
+### Environment Variables
+
+- `VLLM_IMAGE` - Docker image (default: `vllm/vllm-openai:latest`)
+- `VLLM_MODEL` - Model to load (default: `mistralai/Mistral-7B-Instruct-v0.3`)
+- `VLLM_PORT` - Container port (default: `8000`)
+- `VLLM_CONTAINER` - Container name (default: `vllm-openai`)
+- `VLLM_USE_GPU` - Set to `1` to enable `--gpus all`
+- `PORT` - API server port (default: `3000`)
+- `HUGGING_FACE_HUB_TOKEN` - Optional: Hugging Face authentication token for private models

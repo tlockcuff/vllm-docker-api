@@ -1,39 +1,46 @@
-version: "3.9"
 services:
-  management-api:
-    build: ./management-api
-    environment:
-      - ADMIN_TOKEN=${ADMIN_TOKEN}
-      - DEFAULT_PORT_RANGE=21100-21999
-      - VLLM_IMAGE=vllm/vllm-openai:latest
-      - DOCKER_NETWORK=vllm_net
-      - MODELS_VOLUME_NAME=vllm_models
+  api:
+    build: .
+    ports:
+      - "3005:3000"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - models:/models
-      - data:/data
-    networks: [llama_net]
-    ports:
-      - "8081:8081"
-
-  gateway:
-    build: ./gateway
+      - ./models:/app/models
+      - ./.cache:/root/.cache
     environment:
-      - GATEWAY_API_KEY=${GATEWAY_API_KEY}
-      - ADMIN_BASE_URL=http://management-api:8081
-      - ADMIN_TOKEN=${ADMIN_TOKEN}
-    depends_on: [management-api]
-    networks: [llama_net]
+      - NODE_ENV=production
+      - VLLM_IMAGE=${VLLM_IMAGE:-vllm/vllm-openai:latest}
+      - VLLM_MODEL=${VLLM_MODEL:-mistralai/Mistral-7B-Instruct-v0.3}
+      - VLLM_PORT=${VLLM_PORT:-8000}
+      - VLLM_CONTAINER=${VLLM_CONTAINER:-vllm-openai}
+      - VLLM_USE_GPU=${VLLM_USE_GPU:-}
+      - PORT=${PORT:-3000}
+    networks:
+      - vllm-network
+
+  vllm:
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:latest}
     ports:
-      - "8000:8000"
+      - "${VLLM_PORT:-8000}:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+    volumes:
+      - ./models:/root/.cache/huggingface/hub
+    command: --model ${VLLM_MODEL:-mistralai/Mistral-7B-Instruct-v0.3}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - vllm-network
+    profiles:
+      - gpu
+
+networks:
+  vllm-network:
+    driver: bridge
 
 volumes:
   models:
-    name: vllm_models
-  data:
-    name: vllm_data
-
-networks:
-  llama_net:
-    name: vllm_net
-    driver: bridge

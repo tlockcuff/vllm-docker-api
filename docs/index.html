@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vLLM Docker API Documentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 0;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .nav {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .nav a {
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        .nav a:hover {
+            background-color: #f0f0f0;
+        }
+
+        .section {
+            background: white;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .section h2 {
+            background: #667eea;
+            color: white;
+            padding: 20px;
+            font-size: 1.5em;
+        }
+
+        .section-content {
+            padding: 20px;
+        }
+
+        .endpoint {
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+            padding-left: 20px;
+        }
+
+        .endpoint h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+
+        .method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-right: 10px;
+        }
+
+        .method.GET { background: #61affe; color: white; }
+        .method.POST { background: #49cc90; color: white; }
+        .method.DELETE { background: #f93e3e; color: white; }
+
+        .schema {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+
+        .example {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+
+        .example h4 {
+            background: #e9ecef;
+            padding: 10px 15px;
+            margin: 0;
+            font-size: 1em;
+            font-weight: normal;
+        }
+
+        .example pre {
+            padding: 15px;
+            margin: 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+
+        .schema-title {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+
+        .type-def {
+            background: #e7f3ff;
+            border-left: 4px solid #0066cc;
+            padding: 10px 15px;
+            margin: 10px 0;
+        }
+
+        .type-def strong {
+            color: #0066cc;
+        }
+
+        .env-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .env-table th,
+        .env-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .env-table th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+
+        .code {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #6c757d;
+            color: white;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin: 2px;
+        }
+
+        @media (max-width: 768px) {
+            .nav {
+                flex-direction: column;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1>vLLM Docker API</h1>
+            <p>Type-Safe API for managing vLLM containers with Zod validation</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <nav class="nav">
+            <a href="#overview">Overview</a>
+            <a href="#endpoints">Endpoints</a>
+            <a href="#schemas">Schemas</a>
+            <a href="#environment">Environment</a>
+            <a href="#errors">Error Handling</a>
+        </nav>
+
+        <section class="section" id="overview">
+            <h2>Overview</h2>
+            <div class="section-content">
+                <p>This API provides a clean, type-safe interface to manage vLLM containers via Docker CLI. All requests and responses are validated using Zod schemas for runtime type safety.</p>
+
+                <div class="type-def">
+                    <strong>Base URL:</strong> <span class="code">http://localhost:3000</span>
+                </div>
+
+                <h3>Features</h3>
+                <ul>
+                    <li><span class="badge">Zod Validation</span> Runtime type checking with detailed error messages</li>
+                    <li><span class="badge">TypeScript</span> Full type safety throughout the application</li>
+                    <li><span class="badge">Docker Integration</span> Direct Docker CLI management</li>
+                    <li><span class="badge">OpenAI Compatible</span> Chat completions proxy to vLLM</li>
+                    <li><span class="badge">Query Parameters</span> Model selection via URL query parameters</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="section" id="endpoints">
+            <h2>API Endpoints</h2>
+            <div class="section-content">
+
+                <div class="endpoint">
+                    <h3><span class="method GET">GET</span>/api/health</h3>
+                    <p>Health check endpoint</p>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  ok: boolean
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response:</h4>
+                        <pre><code>{
+  "ok": true
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method POST">POST</span>/api/models/download</h3>
+                    <p>Download a model from Hugging Face to the local models directory</p>
+
+                    <div class="schema-title">Request Schema:</div>
+                    <div class="schema">
+{
+  model: string  // Hugging Face model ID (e.g., "mistralai/Mistral-7B-Instruct-v0.3")
+}
+                    </div>
+
+                    <div class="schema-title">Success Response:</div>
+                    <div class="schema">
+{
+  success: true,
+  message: string,
+  model: string,
+  path: string
+}
+                    </div>
+
+                    <div class="schema-title">Error Response:</div>
+                    <div class="schema">
+{
+  success: false,
+  message: string,
+  model: string
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Request:</h4>
+                        <pre><code>{
+  "model": "mistralai/Mistral-7B-Instruct-v0.3"
+}</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Success Response:</h4>
+                        <pre><code>{
+  "success": true,
+  "message": "Successfully downloaded mistralai/Mistral-7B-Instruct-v0.3 to /path/to/project/models/models--mistralai--Mistral-7B-Instruct-v0.3",
+  "model": "mistralai/Mistral-7B-Instruct-v0.3",
+  "path": "/path/to/project/models/models--mistralai--Mistral-7B-Instruct-v0.3"
+}</code></pre>
+                    </div>
+
+                    <div class="type-def">
+                        <strong>Note:</strong> This endpoint uses <code>huggingface-cli</code> which is pre-installed in the Docker container.
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method GET">GET</span>/api/models/download/progress</h3>
+                    <p>Get download progress for all models or a specific model</p>
+
+                    <div class="schema-title">Query Parameters:</div>
+                    <div class="schema">
+model: string  // Optional: specific model ID to check progress for
+                    </div>
+
+                    <div class="schema-title">Response Schema (all downloads):</div>
+                    <div class="schema">
+{
+  success: boolean,
+  downloads: {
+    model: string,
+    status: "downloading" | "completed" | "failed" | "cancelled",
+    progress: number,  // 0-100
+    message: string,
+    startTime: number,
+    endTime?: number,
+    path?: string,
+    error?: string,
+    duration: number  // milliseconds
+  }[]
+}
+                    </div>
+
+                    <div class="schema-title">Response Schema (specific model):</div>
+                    <div class="schema">
+{
+  success: boolean,
+  progress: {
+    model: string,
+    status: "downloading" | "completed" | "failed" | "cancelled",
+    progress: number,  // 0-100
+    message: string,
+    startTime: number,
+    endTime?: number,
+    path?: string,
+    error?: string,
+    duration: number  // milliseconds
+  }
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example: Get all download progress</h4>
+                        <pre><code>GET /api/models/download/progress</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example: Get specific model progress</h4>
+                        <pre><code>GET /api/models/download/progress?model=mistralai/Mistral-7B-Instruct-v0.3</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response:</h4>
+                        <pre><code>{
+  "success": true,
+  "progress": {
+    "model": "mistralai/Mistral-7B-Instruct-v0.3",
+    "status": "downloading",
+    "progress": 45,
+    "message": "Downloading mistralai/Mistral-7B-Instruct-v0.3... (3/7 files)",
+    "startTime": 1677652288000,
+    "duration": 45000
+  }
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method GET">GET</span>/api/models/download/progress/:model</h3>
+                    <p>Get download progress for a specific model (alternative route)</p>
+
+                    <div class="schema-title">Path Parameters:</div>
+                    <div class="schema">
+model: string  // Model ID to check progress for
+                    </div>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  success: boolean,
+  progress: {
+    model: string,
+    status: "downloading" | "completed" | "failed" | "cancelled",
+    progress: number,  // 0-100
+    message: string,
+    startTime: number,
+    endTime?: number,
+    path?: string,
+    error?: string,
+    duration: number  // milliseconds
+  }
+}
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method DELETE">DELETE</span>/api/models/download/:model</h3>
+                    <p>Cancel a model download</p>
+
+                    <div class="schema-title">Path Parameters:</div>
+                    <div class="schema">
+model: string  // Model ID to cancel download for
+                    </div>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  success: boolean,
+  message: string
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Request:</h4>
+                        <pre><code>DELETE /api/models/download/mistralai/Mistral-7B-Instruct-v0.3</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Success Response:</h4>
+                        <pre><code>{
+  "success": true,
+  "message": "Download cancelled for model mistralai/Mistral-7B-Instruct-v0.3"
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method GET">GET</span>/api/status</h3>
+                    <p>Get the current status of the vLLM container</p>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  container: string,  // Container name
+  running: boolean,   // Whether container is running
+  port: number,       // Container port
+  image: string       // Docker image name
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response:</h4>
+                        <pre><code>{
+  "container": "vllm-openai",
+  "running": true,
+  "port": 8000,
+  "image": "vllm/vllm-openai:latest"
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method POST">POST</span>/api/start</h3>
+                    <p>Start a vLLM container with an optional model specification</p>
+
+                    <div class="schema-title">Request Schema:</div>
+                    <div class="schema">
+{
+  model?: string  // Model to load (optional, uses default if not provided)
+}
+                    </div>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  ok: boolean,
+  model: string  // Model that was loaded
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Request:</h4>
+                        <pre><code>{
+  "model": "mistralai/Mistral-7B-Instruct-v0.3"
+}</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response:</h4>
+                        <pre><code>{
+  "ok": true,
+  "model": "mistralai/Mistral-7B-Instruct-v0.3"
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method POST">POST</span>/api/stop</h3>
+                    <p>Stop the running vLLM container</p>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  ok: boolean,
+  stopped: boolean,           // Whether container was stopped
+  message?: string            // Additional message (if not found or already stopped)
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response (success):</h4>
+                        <pre><code>{
+  "ok": true,
+  "stopped": true
+}</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response (already stopped):</h4>
+                        <pre><code>{
+  "ok": true,
+  "stopped": false,
+  "message": "already stopped"
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method DELETE">DELETE</span>/api/remove</h3>
+                    <p>Remove the vLLM container (stops it first if running)</p>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  ok: boolean,
+  removed: boolean,           // Whether container was removed
+  message?: string            // Additional message (if not found)
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response (success):</h4>
+                        <pre><code>{
+  "ok": true,
+  "removed": true
+}</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response (not found):</h4>
+                        <pre><code>{
+  "ok": true,
+  "removed": false,
+  "message": "not found"
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method GET">GET</span>/v1/models</h3>
+                    <p>List locally downloaded Hugging Face models and currently loaded vLLM models</p>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  object: string,
+  data: {
+    id: string,
+    object: string,
+    created: number,
+    owned_by: string
+  }[]
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response:</h4>
+                        <pre><code>{
+  "object": "list",
+  "data": [
+    {
+      "id": "mistralai/Mistral-7B-Instruct-v0.3",
+      "object": "model",
+      "created": 1677649963,
+      "owned_by": "mistralai"
+    },
+    {
+      "id": "microsoft/DialoGPT-medium",
+      "object": "model",
+      "created": 1677649963,
+      "owned_by": "microsoft"
+    }
+  ]
+}</code></pre>
+                    </div>
+
+                    <div class="type-def">
+                        <strong>Note:</strong> This endpoint scans for models in the project directory (including a <code>models/</code> subdirectory) and combines them with any models currently loaded in the running vLLM container.
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method POST">POST</span>/v1/chat/completions</h3>
+                    <p>OpenAI-compatible chat completions endpoint with query parameter model support</p>
+
+                    <div class="schema-title">Request Schema (Body):</div>
+                    <div class="schema">
+{
+  messages: {
+    role: "system" | "user" | "assistant",
+    content: string
+  }[],
+  model?: string,         // Model name (optional, can also be in query params)
+  temperature?: number,   // 0-2, default 0.7
+  stream?: boolean,       // Whether to stream the response, default false
+  max_tokens?: number,
+  top_p?: number,         // 0-1
+  frequency_penalty?: number,
+  presence_penalty?: number
+}
+                    </div>
+
+                    <div class="schema-title">Query Parameters:</div>
+                    <div class="schema">
+model: string  // Model name (takes precedence over body model)
+                    </div>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  id: string,
+  object: string,
+  created: number,
+  model: string,
+  choices: {
+    index: number,
+    message: {
+      role: string,
+      content: string
+    },
+    finish_reason: string | null
+  }[],
+  usage?: {
+    prompt_tokens: number,
+    completion_tokens: number,
+    total_tokens: number
+  }
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Request (with query parameter):</h4>
+                        <pre><code>POST /v1/chat/completions?model=mistralai/Mistral-7B-Instruct-v0.3
+Content-Type: application/json
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, how are you?"
+    }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 100
+}</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Request (model in body):</h4>
+                        <pre><code>POST /v1/chat/completions
+Content-Type: application/json
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, how are you?"
+    }
+  ],
+  "model": "mistralai/Mistral-7B-Instruct-v0.3",
+  "temperature": 0.7
+}</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response:</h4>
+                        <pre><code>{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "mistralai/Mistral-7B-Instruct-v0.3",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I'm doing well, thank you for asking."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 13,
+    "completion_tokens": 15,
+    "total_tokens": 28
+  }
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method POST">POST</span>/v1/completions</h3>
+                    <p>OpenAI-compatible text completions endpoint with query parameter model support</p>
+
+                    <div class="schema-title">Request Schema (Body):</div>
+                    <div class="schema">
+{
+  model?: string,         // Model name (optional, can also be in query params)
+  prompt: string | string[], // Text prompt(s)
+  temperature?: number,   // 0-2, default 0.7
+  max_tokens?: number,
+  stream?: boolean,       // Whether to stream the response, default false
+  top_p?: number,         // 0-1
+  frequency_penalty?: number,
+  presence_penalty?: number
+}
+                    </div>
+
+                    <div class="schema-title">Query Parameters:</div>
+                    <div class="schema">
+model: string  // Model name (takes precedence over body model)
+                    </div>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  id: string,
+  object: string,
+  created: number,
+  model: string,
+  choices: {
+    index: number,
+    text: string,
+    finish_reason: string | null
+  }[],
+  usage?: {
+    prompt_tokens: number,
+    completion_tokens: number,
+    total_tokens: number
+  }
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Request (with query parameter):</h4>
+                        <pre><code>POST /v1/completions?model=mistralai/Mistral-7B-Instruct-v0.3
+Content-Type: application/json
+
+{
+  "prompt": "The future of AI is",
+  "temperature": 0.7,
+  "max_tokens": 50
+}</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response:</h4>
+                        <pre><code>{
+  "id": "cmpl-123",
+  "object": "text_completion",
+  "created": 1677652288,
+  "model": "mistralai/Mistral-7B-Instruct-v0.3",
+  "choices": [
+    {
+      "index": 0,
+      "text": " bright and filled with possibilities. Artificial Intelligence will revolutionize healthcare, education, and transportation in ways we can barely imagine today.",
+      "finish_reason": "length"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 5,
+    "completion_tokens": 28,
+    "total_tokens": 33
+  }
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method POST">POST</span>/v1/embeddings</h3>
+                    <p>OpenAI-compatible embeddings endpoint with query parameter model support</p>
+
+                    <div class="schema-title">Request Schema (Body):</div>
+                    <div class="schema">
+{
+  model: string,          // Model name (can also be in query params)
+  input: string | string[], // Input text(s) to embed
+  user?: string           // Optional user identifier
+}
+                    </div>
+
+                    <div class="schema-title">Query Parameters:</div>
+                    <div class="schema">
+model: string  // Model name (takes precedence over body model)
+                    </div>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  object: string,
+  data: {
+    object: string,
+    embedding: number[],
+    index: number
+  }[],
+  model: string,
+  usage: {
+    prompt_tokens: number,
+    total_tokens: number
+  }
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Request:</h4>
+                        <pre><code>POST /v1/embeddings?model=mistralai/Mistral-7B-Instruct-v0.3
+Content-Type: application/json
+
+{
+  "input": "Hello, world!",
+  "user": "user123"
+}</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response:</h4>
+                        <pre><code>{
+  "object": "list",
+  "data": [
+    {
+      "object": "embedding",
+      "embedding": [0.0023, -0.0017, 0.0045, ...],
+      "index": 0
+    }
+  ],
+  "model": "mistralai/Mistral-7B-Instruct-v0.3",
+  "usage": {
+    "prompt_tokens": 3,
+    "total_tokens": 3
+  }
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint">
+                    <h3><span class="method POST">POST</span>/api/chat</h3>
+                    <p>Proxy requests to the OpenAI-compatible chat completions endpoint (legacy endpoint)</p>
+
+                    <div class="schema-title">Request Schema:</div>
+                    <div class="schema">
+{
+  messages: {
+    role: "system" | "user" | "assistant",
+    content: string
+  }[],
+  model?: string,         // Model name (optional, uses loaded model)
+  temperature?: number,   // 0-2, default 0.7
+  stream?: boolean        // Whether to stream the response, default false
+}
+                    </div>
+
+                    <div class="schema-title">Response Schema:</div>
+                    <div class="schema">
+{
+  id: string,
+  object: string,
+  created: number,
+  model: string,
+  choices: {
+    index: number,
+    message: {
+      role: string,
+      content: string
+    },
+    finish_reason: string | null
+  }[],
+  usage?: {
+    prompt_tokens: number,
+    completion_tokens: number,
+    total_tokens: number
+  }
+}
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Request:</h4>
+                        <pre><code>{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, how are you?"
+    }
+  ],
+  "temperature": 0.7,
+  "stream": false
+}</code></pre>
+                    </div>
+
+                    <div class="example">
+                        <h4>Example Response:</h4>
+                        <pre><code>{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "mistralai/Mistral-7B-Instruct-v0.3",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I'm doing well, thank you for asking."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 13,
+    "completion_tokens": 15,
+    "total_tokens": 28
+  }
+}</code></pre>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <section class="section" id="schemas">
+            <h2>Schema Definitions</h2>
+            <div class="section-content">
+
+                <h3>Common Types</h3>
+
+                <div class="type-def">
+                    <strong>ChatMessage</strong>
+                    <div class="schema">
+{
+  role: "system" | "user" | "assistant",
+  content: string
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>ChatChoice</strong>
+                    <div class="schema">
+{
+  index: number,
+  message: {
+    role: string,
+    content: string
+  },
+  finish_reason: string | null
+}
+                    </div>
+                </div>
+
+                <h3>Request Schemas</h3>
+
+                <div class="type-def">
+                    <strong>DownloadModelRequest</strong>
+                    <div class="schema">
+{
+  model: string
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>StartRequest</strong>
+                    <div class="schema">
+{
+  model?: string
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>ChatRequest</strong>
+                    <div class="schema">
+{
+  messages: ChatMessage[],
+  model?: string,
+  temperature?: number,  // min: 0, max: 2, default: 0.7
+  stream?: boolean       // default: false
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>OpenAIChatRequest</strong>
+                    <div class="schema">
+{
+  messages: ChatMessage[],
+  model?: string,
+  temperature?: number,   // min: 0, max: 2, default: 0.7
+  stream?: boolean,       // default: false
+  max_tokens?: number,
+  top_p?: number,         // min: 0, max: 1
+  frequency_penalty?: number,
+  presence_penalty?: number
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>OpenAICompletionsRequest</strong>
+                    <div class="schema">
+{
+  model?: string,
+  prompt: string | string[],
+  temperature?: number,   // min: 0, max: 2, default: 0.7
+  max_tokens?: number,
+  stream?: boolean,       // default: false
+  top_p?: number,         // min: 0, max: 1
+  frequency_penalty?: number,
+  presence_penalty?: number
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>OpenAIEmbeddingsRequest</strong>
+                    <div class="schema">
+{
+  model: string,
+  input: string | string[],
+  user?: string
+}
+                    </div>
+                </div>
+
+                <h3>Response Schemas</h3>
+
+                <div class="type-def">
+                    <strong>StatusResponse</strong>
+                    <div class="schema">
+{
+  container: string,
+  running: boolean,
+  port: number,
+  image: string
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>StartResponse</strong>
+                    <div class="schema">
+{
+  ok: boolean,
+  model: string
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>StopResponse</strong>
+                    <div class="schema">
+{
+  ok: boolean,
+  stopped: boolean,
+  message?: string
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>RemoveResponse</strong>
+                    <div class="schema">
+{
+  ok: boolean,
+  removed: boolean,
+  message?: string
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>HealthResponse</strong>
+                    <div class="schema">
+{
+  ok: boolean
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>ChatResponse</strong>
+                    <div class="schema">
+{
+  id: string,
+  object: string,
+  created: number,
+  model: string,
+  choices: ChatChoice[],
+  usage?: {
+    prompt_tokens: number,
+    completion_tokens: number,
+    total_tokens: number
+  }
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>CompletionsResponse</strong>
+                    <div class="schema">
+{
+  id: string,
+  object: string,
+  created: number,
+  model: string,
+  choices: {
+    index: number,
+    text: string,
+    finish_reason: string | null
+  }[],
+  usage?: {
+    prompt_tokens: number,
+    completion_tokens: number,
+    total_tokens: number
+  }
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>EmbeddingsResponse</strong>
+                    <div class="schema">
+{
+  object: string,
+  data: {
+    object: string,
+    embedding: number[],
+    index: number
+  }[],
+  model: string,
+  usage: {
+    prompt_tokens: number,
+    total_tokens: number
+  }
+}
+                    </div>
+                </div>
+
+                <div class="type-def">
+                    <strong>ModelsResponse</strong>
+                    <div class="schema">
+{
+  object: string,
+  data: {
+    id: string,
+    object: string,
+    created: number,
+    owned_by: string
+  }[]
+}
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <section class="section" id="environment">
+            <h2>Environment Variables</h2>
+            <div class="section-content">
+
+                <table class="env-table">
+                    <thead>
+                        <tr>
+                            <th>Variable</th>
+                            <th>Default</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>VLLM_IMAGE</code></td>
+                            <td><code>vllm/vllm-openai:latest</code></td>
+                            <td>Docker image to use for vLLM</td>
+                        </tr>
+                        <tr>
+                            <td><code>VLLM_MODEL</code></td>
+                            <td><code>mistralai/Mistral-7B-Instruct-v0.3</code></td>
+                            <td>Default model to load</td>
+                        </tr>
+                        <tr>
+                            <td><code>VLLM_PORT</code></td>
+                            <td><code>8000</code></td>
+                            <td>Port for the vLLM container</td>
+                        </tr>
+                        <tr>
+                            <td><code>VLLM_CONTAINER</code></td>
+                            <td><code>vllm-openai</code></td>
+                            <td>Container name</td>
+                        </tr>
+                        <tr>
+                            <td><code>VLLM_USE_GPU</code></td>
+                            <td>-</td>
+                            <td>Set to <code>1</code> to enable GPU support</td>
+                        </tr>
+                        <tr>
+                            <td><code>PORT</code></td>
+                            <td><code>3000</code></td>
+                            <td>API server port</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+            </div>
+        </section>
+
+        <section class="section" id="errors">
+            <h2>Error Handling</h2>
+            <div class="section-content">
+
+                <p>All endpoints return appropriate HTTP status codes:</p>
+                <ul>
+                    <li><strong>200</strong> - Success</li>
+                    <li><strong>400</strong> - Bad Request (validation errors include detailed Zod error information)</li>
+                    <li><strong>500</strong> - Internal Server Error</li>
+                </ul>
+
+                <div class="schema-title">Error Response Format (API endpoints):</div>
+                <div class="schema">
+{
+  "error": "Error message",
+  "details": []  // Optional: Zod validation errors
+}
+                </div>
+
+                <div class="schema-title">Error Response Format (OpenAI-compatible endpoints):</div>
+                <div class="schema">
+{
+  "error": {
+    "message": "Error message",
+    "type": "error_type",
+    "param": null,
+    "code": null
+  },
+  "details": []  // Optional: Zod validation errors
+}
+                </div>
+
+                <div class="example">
+                    <h4>Example Validation Error:</h4>
+                    <pre><code>{
+  "error": {
+    "message": "Invalid request data",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": null
+  },
+  "details": [
+    {
+      "code": "invalid_type",
+      "expected": "string",
+      "received": "number",
+      "path": ["model"],
+      "message": "Expected string, received number"
+    }
+  ]
+}</code></pre>
+                    </div>
+
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        // Smooth scrolling for navigation
+        document.querySelectorAll('.nav a').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Highlight current section in navigation
+        window.addEventListener('scroll', function() {
+            const sections = document.querySelectorAll('.section');
+            const navLinks = document.querySelectorAll('.nav a');
+
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (pageYOffset >= sectionTop - 60) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+
+    <style>
+        .nav a.active {
+            background-color: #667eea;
+            color: white;
+        }
+    </style>
+</body>
+</html>

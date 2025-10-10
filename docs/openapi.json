@@ -1,0 +1,1418 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "vLLM Docker API",
+    "description": "A TypeScript Node.js API for managing vLLM containers with OpenAI-compatible endpoints and comprehensive model management capabilities.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "vLLM Docker API",
+      "url": "https://github.com/your-repo/vllm-docker-api"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/v1/models": {
+      "get": {
+        "summary": "List available models",
+        "description": "Returns a list of locally downloaded Hugging Face models and currently loaded vLLM models in OpenAI-compatible format.",
+        "operationId": "listModels",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsResponse"
+                },
+                "example": {
+                  "object": "list",
+                  "data": [
+                    {
+                      "id": "mistralai/Mistral-7B-Instruct-v0.3",
+                      "object": "model",
+                      "created": 1677649963,
+                      "owned_by": "mistralai"
+                    },
+                    {
+                      "id": "microsoft/DialoGPT-medium",
+                      "object": "model",
+                      "created": 1677649963,
+                      "owned_by": "microsoft"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "Create chat completion",
+        "description": "Creates a model response for the given chat conversation. OpenAI-compatible endpoint with query parameter model support.",
+        "operationId": "createChatCompletion",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "description": "ID of the model to use. Takes precedence over model specified in request body.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "mistralai/Mistral-7B-Instruct-v0.3"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionRequest"
+              },
+              "example": {
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "Hello, how are you?"
+                  }
+                ],
+                "temperature": 0.7,
+                "max_tokens": 100,
+                "stream": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/completions": {
+      "post": {
+        "summary": "Create text completion",
+        "description": "Creates a completion for the provided prompt and parameters. OpenAI-compatible text completion endpoint.",
+        "operationId": "createCompletion",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "description": "ID of the model to use. Takes precedence over model specified in request body.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "mistralai/Mistral-7B-Instruct-v0.3"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionRequest"
+              },
+              "example": {
+                "prompt": "The future of AI is",
+                "temperature": 0.7,
+                "max_tokens": 50
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/embeddings": {
+      "post": {
+        "summary": "Create embeddings",
+        "description": "Creates an embedding vector representing the input text. OpenAI-compatible embeddings endpoint.",
+        "operationId": "createEmbeddings",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "description": "ID of the model to use for generating embeddings. Takes precedence over model specified in request body.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "mistralai/Mistral-7B-Instruct-v0.3"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingRequest"
+              },
+              "example": {
+                "input": "Hello, world!",
+                "model": "mistralai/Mistral-7B-Instruct-v0.3",
+                "user": "user123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/start": {
+      "post": {
+        "summary": "Start vLLM container",
+        "description": "Starts a vLLM container with the specified model or default model.",
+        "operationId": "startContainer",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRequest"
+              },
+              "example": {
+                "model": "mistralai/Mistral-7B-Instruct-v0.3"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Container started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stop": {
+      "post": {
+        "summary": "Stop vLLM container",
+        "description": "Stops the running vLLM container.",
+        "operationId": "stopContainer",
+        "responses": {
+          "200": {
+            "description": "Container stopped successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remove": {
+      "delete": {
+        "summary": "Remove vLLM container",
+        "description": "Stops and removes the vLLM container.",
+        "operationId": "removeContainer",
+        "responses": {
+          "200": {
+            "description": "Container removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/status": {
+      "get": {
+        "summary": "Get container status",
+        "description": "Returns the current status of the vLLM container.",
+        "operationId": "getContainerStatus",
+        "responses": {
+          "200": {
+            "description": "Status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Returns the health status of the API server.",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "API is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "summary": "Chat completion (legacy)",
+        "description": "Legacy chat completion endpoint. Use /v1/chat/completions instead.",
+        "operationId": "legacyChatCompletion",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/download": {
+      "post": {
+        "summary": "Download model from Hugging Face",
+        "description": "Downloads a model from Hugging Face to the local models directory.",
+        "operationId": "downloadModel",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadModelRequest"
+              },
+              "example": {
+                "model": "mistralai/Mistral-7B-Instruct-v0.3"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Download started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - model already exists or invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Download failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/download/progress": {
+      "get": {
+        "summary": "Get download progress",
+        "description": "Returns download progress for all models or a specific model.",
+        "operationId": "getDownloadProgress",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Specific model ID to check progress for. If not provided, returns progress for all downloads.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "mistralai/Mistral-7B-Instruct-v0.3"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Progress retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/DownloadProgressResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AllDownloadsProgressResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model download not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/download/progress/{model}": {
+      "get": {
+        "summary": "Get download progress for specific model",
+        "description": "Returns download progress for a specific model.",
+        "operationId": "getModelDownloadProgress",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "description": "Model ID to check progress for",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "mistralai/Mistral-7B-Instruct-v0.3"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Progress retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadProgressResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model download not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/download/{model}": {
+      "delete": {
+        "summary": "Cancel model download",
+        "description": "Cancels an ongoing model download.",
+        "operationId": "cancelModelDownload",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "description": "Model ID to cancel download for",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "mistralai/Mistral-7B-Instruct-v0.3"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download cancelled successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelDownloadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Download cannot be cancelled (already completed/failed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Download not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatMessage": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["system", "user", "assistant"],
+            "description": "The role of the message author"
+          },
+          "content": {
+            "type": "string",
+            "description": "The content of the message"
+          }
+        }
+      },
+      "ChatChoice": {
+        "type": "object",
+        "required": ["index", "message", "finish_reason"],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "The index of the choice in the list of choices"
+          },
+          "message": {
+            "type": "object",
+            "required": ["role", "content"],
+            "properties": {
+              "role": {
+                "type": "string",
+                "description": "The role of the message author"
+              },
+              "content": {
+                "type": "string",
+                "description": "The content of the message"
+              }
+            }
+          },
+          "finish_reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "The reason the model stopped generating tokens"
+          }
+        }
+      },
+      "ModelsResponse": {
+        "type": "object",
+        "required": ["object", "data"],
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "object", "created", "owned_by"],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The model identifier"
+                },
+                "object": {
+                  "type": "string",
+                  "example": "model"
+                },
+                "created": {
+                  "type": "integer",
+                  "description": "Unix timestamp of model creation"
+                },
+                "owned_by": {
+                  "type": "string",
+                  "description": "The organization that owns the model"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ChatCompletionRequest": {
+        "type": "object",
+        "required": ["messages"],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "description": "A list of messages comprising the conversation so far"
+          },
+          "model": {
+            "type": "string",
+            "description": "ID of the model to use. If not specified, uses the default model"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2,
+            "default": 0.7,
+            "description": "Controls randomness in the response"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "The maximum number of tokens to generate"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to stream the response"
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Controls diversity via nucleus sampling"
+          },
+          "frequency_penalty": {
+            "type": "number",
+            "description": "Penalizes repeated tokens"
+          },
+          "presence_penalty": {
+            "type": "number",
+            "description": "Penalizes tokens based on presence in the text"
+          }
+        }
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "required": ["id", "object", "created", "model", "choices"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "A unique identifier for the chat completion"
+          },
+          "object": {
+            "type": "string",
+            "example": "chat.completion"
+          },
+          "created": {
+            "type": "integer",
+            "description": "Unix timestamp of when the chat completion was created"
+          },
+          "model": {
+            "type": "string",
+            "description": "The model used for the chat completion"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatChoice"
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer",
+                "description": "Number of tokens in the prompt"
+              },
+              "completion_tokens": {
+                "type": "integer",
+                "description": "Number of tokens in the completion"
+              },
+              "total_tokens": {
+                "type": "integer",
+                "description": "Total number of tokens used"
+              }
+            }
+          }
+        }
+      },
+      "CompletionRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "ID of the model to use. If not specified, uses the default model"
+          },
+          "prompt": {
+            "oneOf": [
+              {"type": "string"},
+              {"type": "array", "items": {"type": "string"}}
+            ],
+            "description": "The prompt(s) to generate completions for"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2,
+            "default": 0.7,
+            "description": "Controls randomness in the response"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "The maximum number of tokens to generate"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to stream the response"
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Controls diversity via nucleus sampling"
+          },
+          "frequency_penalty": {
+            "type": "number",
+            "description": "Penalizes repeated tokens"
+          },
+          "presence_penalty": {
+            "type": "number",
+            "description": "Penalizes tokens based on presence in the text"
+          }
+        }
+      },
+      "CompletionResponse": {
+        "type": "object",
+        "required": ["id", "object", "created", "model", "choices"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "A unique identifier for the completion"
+          },
+          "object": {
+            "type": "string",
+            "example": "text_completion"
+          },
+          "created": {
+            "type": "integer",
+            "description": "Unix timestamp of when the completion was created"
+          },
+          "model": {
+            "type": "string",
+            "description": "The model used for the completion"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["index", "text", "finish_reason"],
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "description": "The index of the choice in the list of choices"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The generated text"
+                },
+                "finish_reason": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "The reason the model stopped generating tokens"
+                }
+              }
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer",
+                "description": "Number of tokens in the prompt"
+              },
+              "completion_tokens": {
+                "type": "integer",
+                "description": "Number of tokens in the completion"
+              },
+              "total_tokens": {
+                "type": "integer",
+                "description": "Total number of tokens used"
+              }
+            }
+          }
+        }
+      },
+      "EmbeddingRequest": {
+        "type": "object",
+        "required": ["model", "input"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "ID of the model to use for generating embeddings"
+          },
+          "input": {
+            "oneOf": [
+              {"type": "string"},
+              {"type": "array", "items": {"type": "string"}}
+            ],
+            "description": "Input text to embed"
+          },
+          "user": {
+            "type": "string",
+            "description": "A unique identifier representing your end-user"
+          }
+        }
+      },
+      "EmbeddingResponse": {
+        "type": "object",
+        "required": ["object", "data", "model", "usage"],
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["object", "embedding", "index"],
+              "properties": {
+                "object": {
+                  "type": "string",
+                  "example": "embedding"
+                },
+                "embedding": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "description": "The embedding vector"
+                },
+                "index": {
+                  "type": "integer",
+                  "description": "The index of the embedding in the list"
+                }
+              }
+            }
+          },
+          "model": {
+            "type": "string",
+            "description": "The model used to generate the embeddings"
+          },
+          "usage": {
+            "type": "object",
+            "required": ["prompt_tokens", "total_tokens"],
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer",
+                "description": "Number of tokens in the input"
+              },
+              "total_tokens": {
+                "type": "integer",
+                "description": "Total number of tokens used"
+              }
+            }
+          }
+        }
+      },
+      "StartRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model to load. If not provided, uses the default model"
+          }
+        }
+      },
+      "StartResponse": {
+        "type": "object",
+        "required": ["ok", "model"],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string",
+            "description": "The model that was loaded"
+          }
+        }
+      },
+      "StopResponse": {
+        "type": "object",
+        "required": ["ok", "stopped"],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "stopped": {
+            "type": "boolean",
+            "description": "Whether the container was stopped"
+          },
+          "message": {
+            "type": "string",
+            "description": "Additional message if not found or already stopped"
+          }
+        }
+      },
+      "RemoveResponse": {
+        "type": "object",
+        "required": ["ok", "removed"],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "removed": {
+            "type": "boolean",
+            "description": "Whether the container was removed"
+          },
+          "message": {
+            "type": "string",
+            "description": "Additional message if not found"
+          }
+        }
+      },
+      "StatusResponse": {
+        "type": "object",
+        "required": ["container", "running", "port", "image"],
+        "properties": {
+          "container": {
+            "type": "string",
+            "description": "Container name"
+          },
+          "running": {
+            "type": "boolean",
+            "description": "Whether the container is running"
+          },
+          "port": {
+            "type": "integer",
+            "description": "Container port"
+          },
+          "image": {
+            "type": "string",
+            "description": "Docker image name"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": ["ok"],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": ["messages"],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            }
+          },
+          "model": {
+            "type": "string",
+            "description": "Model name (optional, uses loaded model)"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2,
+            "default": 0.7
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to stream the response"
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "required": ["id", "object", "created", "model", "choices"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatChoice"
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer"
+              },
+              "completion_tokens": {
+                "type": "integer"
+              },
+              "total_tokens": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "DownloadModelRequest": {
+        "type": "object",
+        "required": ["model"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Hugging Face model ID (e.g., 'mistralai/Mistral-7B-Instruct-v0.3')"
+          }
+        }
+      },
+      "DownloadResponse": {
+        "type": "object",
+        "required": ["success", "message", "model"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "description": "Path where the model was downloaded"
+          }
+        }
+      },
+      "DownloadProgressResponse": {
+        "type": "object",
+        "required": ["success", "progress"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["downloading", "completed", "failed", "cancelled"]
+              },
+              "progress": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Download progress percentage"
+              },
+              "message": {
+                "type": "string"
+              },
+              "startTime": {
+                "type": "integer",
+                "description": "Unix timestamp when download started"
+              },
+              "endTime": {
+                "type": "integer",
+                "description": "Unix timestamp when download ended (if completed)"
+              },
+              "path": {
+                "type": "string",
+                "description": "Path where the model is being downloaded"
+              },
+              "error": {
+                "type": "string",
+                "description": "Error message if download failed"
+              },
+              "duration": {
+                "type": "integer",
+                "description": "Download duration in milliseconds"
+              }
+            }
+          }
+        }
+      },
+      "AllDownloadsProgressResponse": {
+        "type": "object",
+        "required": ["success", "downloads"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "downloads": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["downloading", "completed", "failed", "cancelled"]
+                },
+                "progress": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Download progress percentage"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "startTime": {
+                  "type": "integer",
+                  "description": "Unix timestamp when download started"
+                },
+                "endTime": {
+                  "type": "integer",
+                  "description": "Unix timestamp when download ended (if completed)"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Path where the model is being downloaded"
+                },
+                "error": {
+                  "type": "string",
+                  "description": "Error message if download failed"
+                },
+                "duration": {
+                  "type": "integer",
+                  "description": "Download duration in milliseconds"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CancelDownloadResponse": {
+        "type": "object",
+        "required": ["success", "message"],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "description": "Zod validation errors"
+          }
+        }
+      },
+      "OpenAIErrorResponse": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["message", "type", "param", "code"],
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "param": {
+                "type": "string",
+                "nullable": true
+              },
+              "code": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "details": {
+            "type": "array",
+            "description": "Zod validation errors"
+          }
+        }
+      }
+    }
+  },
+  "security": [],
+  "tags": [
+    {
+      "name": "OpenAI Compatible",
+      "description": "Endpoints that are compatible with OpenAI's API"
+    },
+    {
+      "name": "Management",
+      "description": "vLLM container management endpoints"
+    },
+    {
+      "name": "Models",
+      "description": "Model download and management endpoints"
+    }
+  ]
+}

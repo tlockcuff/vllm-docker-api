@@ -1,0 +1,8 @@
+{
+  "entryPoints": ["server/src"],
+  "out": "docs/site",
+  "tsconfig": "server/tsconfig.json",
+  "skipErrorChecking": true,
+  "excludeExternals": true
+}
+
