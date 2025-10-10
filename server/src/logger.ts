@@ -4,13 +4,32 @@ interface LogFields {
   [key: string]: unknown;
 }
 
+function serializeValue(value: unknown): string {
+  if (value === null || value === undefined) return String(value);
+  if (typeof value === 'string') {
+    // Quote strings with spaces for readability
+    return /\s/.test(value) ? `"${value}"` : value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
 function format(level: LogLevel, message: string, fields?: LogFields) {
-  const base = {
-    level,
-    message: message,
-  } as Record<string, unknown>;
-  const payload = fields ? { ...base, ...fields } : base;
-  return JSON.stringify(payload);
+  const ts = new Date().toISOString();
+  const lvl = level.toUpperCase();
+  let suffix = '';
+  if (fields && Object.keys(fields).length > 0) {
+    const parts: string[] = [];
+    for (const [key, value] of Object.entries(fields)) {
+      parts.push(`${key}=${serializeValue(value)}`);
+    }
+    suffix = ' ' + parts.join(' ');
+  }
+  return `${ts} ${lvl} ${message}${suffix}`;
 }
 
 export const logger = {

@@ -12,6 +12,8 @@ export function mountManagementRoutes(app: Express) {
   registry.registerPath({ method: 'post', path: '/api/stop', responses: { 200: { description: 'Stop vLLM container', content: { 'application/json': { schema: StopResponseSchema } } } } });
   registry.registerPath({ method: 'delete', path: '/api/remove', responses: { 200: { description: 'Remove vLLM container', content: { 'application/json': { schema: RemoveResponseSchema } } } } });
   registry.registerPath({ method: 'get', path: '/api/health', responses: { 200: { description: 'Health check', content: { 'application/json': { schema: HealthResponseSchema } } } } });
+  registry.registerPath({ method: 'post', path: '/api/stop/{model}', parameters: [{ name: 'model', in: 'path', required: true }], responses: { 200: { description: 'Stop model-scoped vLLM container', content: { 'application/json': { schema: StopResponseSchema } } } } });
+  registry.registerPath({ method: 'delete', path: '/api/remove/{model}', parameters: [{ name: 'model', in: 'path', required: true }], responses: { 200: { description: 'Remove model-scoped vLLM container', content: { 'application/json': { schema: RemoveResponseSchema } } } } });
 
   app.get('/api/status', async (req: Request, res: Response) => {
     try {
@@ -115,6 +117,29 @@ export function mountManagementRoutes(app: Express) {
       res.json(response);
     } catch (e) {
       logger.error('route_error', { route: '/api/remove/:model', method: req.method, path: req.originalUrl, model: req.params.model, errorMessage: String(e) });
+      res.status(500).json({ error: String(e) });
+    }
+  });
+
+  app.post('/api/stop/:model', async (req: Request, res: Response) => {
+    try {
+      const model = req.params.model;
+      const name = getContainerNameForModel(model);
+      const exists = await containerExists(name);
+      if (!exists) {
+        const response = StopResponseSchema.parse({ ok: true, stopped: false, message: 'not found' });
+        return res.json(response);
+      }
+      const running = await containerRunning(name);
+      if (!running) {
+        const response = StopResponseSchema.parse({ ok: true, stopped: false, message: 'already stopped' });
+        return res.json(response);
+      }
+      await runDocker(['stop', name]);
+      const response = StopResponseSchema.parse({ ok: true, stopped: true });
+      res.json(response);
+    } catch (e) {
+      logger.error('route_error', { route: '/api/stop/:model', method: req.method, path: req.originalUrl, model: req.params.model, errorMessage: String(e) });
       res.status(500).json({ error: String(e) });
     }
   });
