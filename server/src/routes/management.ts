@@ -50,8 +50,7 @@ export function mountManagementRoutes(app: Express) {
     try {
       const requestData = StartRequestSchema.parse(req.body);
       const model = requestData.model && requestData.model.length > 0 ? requestData.model : DEFAULT_MODEL;
-      const { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb, quantization, kvCacheDtype, maxModelLen } = requestData as any;
-      await ensureVllmForModel(model, { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb, quantization, kvCacheDtype, maxModelLen });
+      await ensureVllmForModel(model, requestData);
       const response = StartResponseSchema.parse({ ok: true, model });
       res.json(response);
     } catch (e) {

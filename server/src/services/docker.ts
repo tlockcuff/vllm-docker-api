@@ -1,8 +1,10 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
+import { StartRequestSchema } from "../schemas.js";
 import { VLLM_CONTAINER, VLLM_IMAGE, VLLM_PORT, VLLM_USE_GPU } from "../config.js";
 import { logger } from "../logger.js";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
 
@@ -57,19 +59,7 @@ export async function getHostPort(containerName: string): Promise<number> {
   return VLLM_PORT;
 }
 
-export async function ensureVllmForModel(
-  model: string,
-  options?: {
-    tensorParallelSize?: number;
-    dtype?: string;
-    enableSleepMode?: boolean;
-    cpuOffloadGb?: number;
-    quantization?: string;
-    kvCacheDtype?: string;
-    maxModelLen?: number;
-  }
-): Promise<{ name: string; port: number }> {
-  const { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb, quantization, kvCacheDtype, maxModelLen } = options || {};
+export async function ensureVllmForModel(model: string, requestData?: z.infer<typeof StartRequestSchema>): Promise<{ name: string; port: number }> {
   const name = getContainerNameForModel(model);
   const exists = await containerExists(name);
   if (!exists) {
@@ -88,31 +78,10 @@ export async function ensureVllmForModel(
     }
 
     const vllmArgs: string[] = [];
-    // Dtype: prefer request, else default to fp16 on GPU
-    if (dtype) {
-      vllmArgs.push("--dtype", String(dtype));
-    } else if (VLLM_USE_GPU) {
-      vllmArgs.push("--dtype", "float16");
+    if (requestData) {
+      vllmArgs.push(...Object.entries(requestData).map(([key, value]) => `--${key}=${value}`));
     }
-    if (quantization) {
-      vllmArgs.push("--quantization", String(quantization));
-    }
-    if (kvCacheDtype) {
-      vllmArgs.push("--kv-cache-dtype", String(kvCacheDtype));
-    }
-    if (typeof maxModelLen === "number" && maxModelLen > 0) {
-      vllmArgs.push("--max-model-len", String(maxModelLen));
-    }
-    if (enableSleepMode) {
-      vllmArgs.push("--enable-sleep-mode");
-    }
-    if (typeof cpuOffloadGb === "number" && cpuOffloadGb > 0) {
-      vllmArgs.push("--cpu-offload-gb", String(cpuOffloadGb));
-    }
-    if (VLLM_USE_GPU && typeof tensorParallelSize === "number" && tensorParallelSize > 0) {
-      vllmArgs.push("--tensor-parallel-size", String(tensorParallelSize));
-    }
-    vllmArgs.push("--device", "cuda");
+    console.log(`Starting vLLM container with args: ${vllmArgs.join(" ")}`);
 
     const args = [
       "run",
