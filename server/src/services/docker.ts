@@ -41,12 +41,20 @@ export async function ensureVllm(model: string = DEFAULT_MODEL) {
       envArgs.push('-e', 'VLLM_DEVICE=cpu');
     }
 
+    const deviceCliArgs: string[] = [];
+    if (process.env.VLLM_DEVICE) {
+      deviceCliArgs.push('--device', process.env.VLLM_DEVICE);
+    } else if (!VLLM_USE_GPU) {
+      deviceCliArgs.push('--device', 'cpu');
+    }
+
     const args = [
       'run', '-d', '--restart', 'unless-stopped', '--name', VLLM_CONTAINER,
       '-p', `${VLLM_PORT}:8000`,
       ...envArgs,
       ...(VLLM_USE_GPU ? ['--gpus', 'all'] : []),
       VLLM_IMAGE,
+      ...deviceCliArgs,
       '--model', model,
     ];
     await runDocker(args);
@@ -120,6 +128,13 @@ export async function ensureVllmForModel(model: string): Promise<{ name: string;
       envArgs.push('-e', 'VLLM_DEVICE=cpu');
     }
 
+    const deviceCliArgs: string[] = [];
+    if (process.env.VLLM_DEVICE) {
+      deviceCliArgs.push('--device', process.env.VLLM_DEVICE);
+    } else if (!VLLM_USE_GPU) {
+      deviceCliArgs.push('--device', 'cpu');
+    }
+
     const args = [
       'run', '-d', '--restart', 'unless-stopped', '--name', name,
       // Let Docker assign a random available host port; we'll discover it via inspect
@@ -127,6 +142,7 @@ export async function ensureVllmForModel(model: string): Promise<{ name: string;
       ...envArgs,
       ...(VLLM_USE_GPU ? ['--gpus', 'all'] : []),
       VLLM_IMAGE,
+      ...deviceCliArgs,
       '--model', model,
     ];
     await runDocker(args);
