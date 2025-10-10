@@ -59,7 +59,15 @@ export async function getHostPort(containerName: string): Promise<number> {
 
 export async function ensureVllmForModel(
   model: string,
-  options?: { tensorParallelSize?: number; dtype?: string; enableSleepMode?: boolean; cpuOffloadGb?: number; quantization?: string; kvCacheDtype?: string; maxModelLen?: number }
+  options?: {
+    tensorParallelSize?: number;
+    dtype?: string;
+    enableSleepMode?: boolean;
+    cpuOffloadGb?: number;
+    quantization?: string;
+    kvCacheDtype?: string;
+    maxModelLen?: number;
+  }
 ): Promise<{ name: string; port: number }> {
   const { tensorParallelSize, dtype, enableSleepMode, cpuOffloadGb, quantization, kvCacheDtype, maxModelLen } = options || {};
   const name = getContainerNameForModel(model);
@@ -104,6 +112,7 @@ export async function ensureVllmForModel(
     if (VLLM_USE_GPU && typeof tensorParallelSize === "number" && tensorParallelSize > 0) {
       vllmArgs.push("--tensor-parallel-size", String(tensorParallelSize));
     }
+    vllmArgs.push("--device", "cuda");
 
     const args = [
       "run",
