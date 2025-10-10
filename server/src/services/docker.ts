@@ -83,7 +83,7 @@ export async function ensureVllmForModel(
     vllmArgs.push("--device", "cuda");
     // vllmArgs.push("--dtype", "auto");
     // vllmArgs.push("--kv-cache-dtype", "auto");
-    vllmArgs.push("--gpu-memory-utilization", "0.95");
+    // vllmArgs.push("--gpu-memory-utilization", "0.95");
     vllmArgs.push("--tensor-parallel-size", "2");
     // vllmArgs.push('--quantization', 'auto')
     // vllmArgs.push('--max-num-seqs', '128')
