@@ -86,7 +86,7 @@ export async function ensureVllmForModel(
     vllmArgs.push("--gpu-memory-utilization", "0.95");
     vllmArgs.push("--tensor-parallel-size", "2");
     // vllmArgs.push('--quantization', 'auto')
-    vllmArgs.push('--max-num-seqs', '128')
+    // vllmArgs.push('--max-num-seqs', '128')
 
     const args = [
       "run",
