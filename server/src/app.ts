@@ -23,8 +23,6 @@ export function createApp(): Express {
         status: res.statusCode,
         durationMs,
         ip: req.ip,
-        userAgent: req.get('user-agent') || undefined,
-        contentLength: res.getHeader('content-length') || undefined,
       });
     });
     next();

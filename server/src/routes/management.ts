@@ -7,24 +7,10 @@ import { logger } from '../logger.js';
 
 export function mountManagementRoutes(app: Express) {
   // OpenAPI registrations
-  registry.registerPath({ method: 'get', path: '/api/status', responses: { 200: { description: 'Container status', content: { 'application/json': { schema: StatusResponseSchema } } } } });
   registry.registerPath({ method: 'post', path: '/api/start', request: { body: { content: { 'application/json': { schema: StartRequestSchema } } } }, responses: { 200: { description: 'Start vLLM container', content: { 'application/json': { schema: StartResponseSchema } } } } });
-  registry.registerPath({ method: 'post', path: '/api/stop', responses: { 200: { description: 'Stop vLLM container', content: { 'application/json': { schema: StopResponseSchema } } } } });
-  registry.registerPath({ method: 'delete', path: '/api/remove', responses: { 200: { description: 'Remove vLLM container', content: { 'application/json': { schema: RemoveResponseSchema } } } } });
   registry.registerPath({ method: 'get', path: '/api/health', responses: { 200: { description: 'Health check', content: { 'application/json': { schema: HealthResponseSchema } } } } });
   registry.registerPath({ method: 'post', path: '/api/stop/{model}', parameters: [{ name: 'model', in: 'path', required: true }], responses: { 200: { description: 'Stop model-scoped vLLM container', content: { 'application/json': { schema: StopResponseSchema } } } } });
   registry.registerPath({ method: 'delete', path: '/api/remove/{model}', parameters: [{ name: 'model', in: 'path', required: true }], responses: { 200: { description: 'Remove model-scoped vLLM container', content: { 'application/json': { schema: RemoveResponseSchema } } } } });
-
-  app.get('/api/status', async (req: Request, res: Response) => {
-    try {
-      const running = await containerRunning(VLLM_CONTAINER);
-      const response = StatusResponseSchema.parse({ container: VLLM_CONTAINER, running, port: VLLM_PORT, image: VLLM_IMAGE });
-      res.json(response);
-    } catch (e) {
-      logger.error('route_error', { route: '/api/status', method: req.method, path: req.originalUrl, errorMessage: String(e) });
-      res.status(500).json({ error: String(e) });
-    }
-  });
 
   app.post('/api/start', async (req: Request, res: Response) => {
     try {
@@ -40,46 +26,6 @@ export function mountManagementRoutes(app: Express) {
       } else {
         res.status(500).json({ error: String(e) });
       }
-    }
-  });
-
-  app.post('/api/stop', async (req: Request, res: Response) => {
-    try {
-      const exists = await containerExists(VLLM_CONTAINER);
-      if (!exists) {
-        const response = StopResponseSchema.parse({ ok: true, stopped: false, message: 'not found' });
-        return res.json(response);
-      }
-      const running = await containerRunning(VLLM_CONTAINER);
-      if (!running) {
-        const response = StopResponseSchema.parse({ ok: true, stopped: false, message: 'already stopped' });
-        return res.json(response);
-      }
-      await runDocker(['stop', VLLM_CONTAINER]);
-      const response = StopResponseSchema.parse({ ok: true, stopped: true });
-      res.json(response);
-    } catch (e) {
-      logger.error('route_error', { route: '/api/stop', method: req.method, path: req.originalUrl, errorMessage: String(e) });
-      res.status(500).json({ error: String(e) });
-    }
-  });
-
-  app.delete('/api/remove', async (req: Request, res: Response) => {
-    try {
-      const exists = await containerExists(VLLM_CONTAINER);
-      if (!exists) {
-        const response = RemoveResponseSchema.parse({ ok: true, removed: false, message: 'not found' });
-        return res.json(response);
-      }
-      const running = await containerRunning(VLLM_CONTAINER);
-      if (running) await runDocker(['stop', VLLM_CONTAINER]);
-      stopLogStreaming(VLLM_CONTAINER);
-      await runDocker(['rm', VLLM_CONTAINER]);
-      const response = RemoveResponseSchema.parse({ ok: true, removed: true });
-      res.json(response);
-    } catch (e) {
-      logger.error('route_error', { route: '/api/remove', method: req.method, path: req.originalUrl, errorMessage: String(e) });
-      res.status(500).json({ error: String(e) });
     }
   });
 

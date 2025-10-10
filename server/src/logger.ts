@@ -19,7 +19,6 @@ function serializeValue(value: unknown): string {
 }
 
 function format(level: LogLevel, message: string, fields?: LogFields) {
-  const ts = new Date().toISOString();
   const lvl = level.toUpperCase();
   let suffix = '';
   if (fields && Object.keys(fields).length > 0) {
@@ -29,7 +28,7 @@ function format(level: LogLevel, message: string, fields?: LogFields) {
     }
     suffix = ' ' + parts.join(' ');
   }
-  return `${ts} ${lvl} ${message}${suffix}`;
+  return `${lvl} ${message}${suffix}`;
 }
 
 export const logger = {
