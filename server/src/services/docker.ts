@@ -133,8 +133,8 @@ export async function ensureVllmForModel(model: string, requestData?: z.infer<ty
     }
   }
   const port = await getHostPort(name);
-  // Wait for vLLM container to be ready on its internal port before returning
-  await waitForVllmReadiness(name, 8000, 45000);
+  // Wait for vLLM container to be ready before returning (probe container DNS and host-mapped port)
+  await waitForVllmReadiness(name, port, 600000);
   return { name, port };
 }
 
@@ -191,21 +191,33 @@ async function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForVllmReadiness(containerName: string, containerPort: number, timeoutMs: number) {
+async function waitForVllmReadiness(containerName: string, hostPort: number, timeoutMs: number) {
   const start = Date.now();
   const axios = (await import("axios")).default;
-  const url = `http://${containerName}:${containerPort}/v1/models`;
   let attempt = 0;
   while (Date.now() - start < timeoutMs) {
     attempt += 1;
     try {
-      const resp = await axios.get(url, { timeout: 1500 });
-      if (resp.status >= 200 && resp.status < 300) {
-        logger.info("vllm_readiness_ok", { containerName, attempt });
+      // Try container DNS first (same docker network)
+      const urlContainer = `http://${containerName}:${VLLM_PORT}/v1/models`;
+      const respContainer = await axios.get(urlContainer, { timeout: 1500 });
+      if (respContainer.status >= 200 && respContainer.status < 300) {
+        logger.info("vllm_readiness_ok", { containerName, attempt, via: "container" });
         return;
       }
     } catch (e) {
       // ECONNREFUSED / EAI_AGAIN while the server is booting; retry
+    }
+    try {
+      // Fallback to host-mapped port (useful when not resolvable via DNS yet)
+      const urlHost = `http://127.0.0.1:${hostPort}/v1/models`;
+      const respHost = await axios.get(urlHost, { timeout: 1500 });
+      if (respHost.status >= 200 && respHost.status < 300) {
+        logger.info("vllm_readiness_ok", { containerName, attempt, via: "host" });
+        return;
+      }
+    } catch (e) {
+      // Still starting up; retry
     }
     await wait(500);
   }
